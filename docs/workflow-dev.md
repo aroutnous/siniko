@@ -46,6 +46,8 @@ Après chaque changement :
 ```bash
 docker compose up -d --build backend
 docker compose logs backend | tail -20
+docker compose up -d --build backend    # ou frontend, ou tout
+# Migrations Alembic : automatiques au démarrage de siniko-backend
 curl http://localhost:8000/health
 # Tests API : http://localhost:8000/docs
 # UI : http://localhost:8080

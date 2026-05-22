@@ -27,8 +27,7 @@ Le mode **100 % Docker** (API + front en conteneur) reste possible avec le profi
 cd /Users/aroutnous/siniko
 cp .env.example .env    # une fois, puis éditer les secrets
 docker compose up -d --build
-docker compose logs migrations   # doit finir en succès
-docker compose ps                # api, frontend, postgres, pgadmin, grafana… « running »
+docker compose ps                # siniko-backend, siniko-frontend, siniko-postgres… « running »
 ```
 
 | Service | URL |
@@ -41,8 +40,8 @@ docker compose ps                # api, frontend, postgres, pgadmin, grafana… 
 ### Après modification du code backend
 
 ```bash
-docker compose up -d --build api          # rebuild + redémarrage API
-docker compose run --rm migrations        # si nouvelle migration Alembic
+docker compose up -d --build backend
+# Les migrations Alembic s'exécutent automatiquement au démarrage du backend
 ```
 
 ### Après modification du frontend
