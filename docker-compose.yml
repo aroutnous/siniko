@@ -1,8 +1,9 @@
 # Stack SINIKO — Mac M4 (linux/arm64) — mode 100 % Docker
-# postgres + pgAdmin + migrations + API + frontend + Loki/Grafana
+# Noms de conteneurs fixes (sans suffixe -1) via container_name
 
 services:
   postgres:
+    container_name: siniko-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: siniko
@@ -18,26 +19,13 @@ services:
       timeout: 5s
       retries: 5
 
-  migrations:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: ["alembic", "upgrade", "head"]
-    env_file:
-      - .env
-    environment:
-      ALEMBIC_DATABASE_URL: postgresql+psycopg2://siniko:siniko@postgres:5432/siniko
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-
   pgadmin:
+    container_name: siniko-pgadmin
     image: dpage/pgadmin4:8.14
     ports:
       - "5050:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@siniko.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@siniko.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     volumes:
@@ -46,7 +34,8 @@ services:
       postgres:
         condition: service_healthy
 
-  api:
+  backend:
+    container_name: siniko-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -54,21 +43,21 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://siniko:siniko@postgres:5432/siniko
+      ALEMBIC_DATABASE_URL: postgresql+psycopg2://siniko:siniko@postgres:5432/siniko
       APP_DEBUG: "true"
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-      migrations:
-        condition: service_completed_successfully
     logging:
       driver: json-file
       options:
         max-size: "10m"
-        labels: "service=siniko-api"
+        labels: "service=siniko-backend"
 
   frontend:
+    container_name: siniko-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -77,9 +66,10 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - api
+      - backend
 
   loki:
+    container_name: siniko-loki
     image: grafana/loki:3.3.2
     command: -config.file=/etc/loki/loki-config.yml
     ports:
@@ -89,6 +79,7 @@ services:
       - loki_data:/loki
 
   promtail:
+    container_name: siniko-promtail
     image: grafana/promtail:3.3.2
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
@@ -99,6 +90,7 @@ services:
       - loki
 
   grafana:
+    container_name: siniko-grafana
     image: grafana/grafana:11.4.0
     ports:
       - "3000:3000"

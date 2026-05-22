@@ -10,8 +10,6 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
 COPY --from=build /app/dist /usr/share/nginx/html
-RUN chown -R nginx:nginx /usr/share/nginx/html
-USER nginx
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:80/ || exit 1
 CMD ["nginx", "-g", "daemon off;"]
