@@ -1,5 +1,7 @@
 # Workflow de développement — SINIKO
 
+> Liste complète des prompts à enchaîner : **[prompts-granulaires.md](prompts-granulaires.md)**
+
 ## Boucle quotidienne (granulaire)
 
 ```text
@@ -42,6 +44,8 @@ gh pr create   # ou via l’interface GitHub
 Après chaque changement :
 
 ```bash
+docker compose up -d --build backend
+docker compose logs backend | tail -20
 docker compose up -d --build backend    # ou frontend, ou tout
 # Migrations Alembic : automatiques au démarrage de siniko-backend
 curl http://localhost:8000/health

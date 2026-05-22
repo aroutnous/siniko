@@ -2,6 +2,8 @@
 
 Chaîne retenue (shift left → production), alignée CDC et stack validée.
 
+> Explication détaillée de chaque étape (objectif, OWASP, limites) : **[pipeline-securite.md](pipeline-securite.md)**
+
 ## Vue d’ensemble
 
 ```text

@@ -17,7 +17,7 @@ Application SaaS de gestion scolaire — stage DevSecOps (HESTIM / THL Technolog
 
 ## Démarrage rapide (Mac ARM64)
 
-Guide détaillé : **[docs/demarrage.md](docs/demarrage.md)** · Workflow : **[docs/workflow-dev.md](docs/workflow-dev.md)**
+Guide détaillé : **[docs/demarrage.md](docs/demarrage.md)** · Workflow : **[docs/workflow-dev.md](docs/workflow-dev.md)** · **Pipeline sécurité : [docs/pipeline-securite.md](docs/pipeline-securite.md)** · Prompts : **[docs/prompts-granulaires.md](docs/prompts-granulaires.md)**
 
 ```bash
 cp .env.example .env
