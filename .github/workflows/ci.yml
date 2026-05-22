@@ -119,7 +119,7 @@ jobs:
       - name: Build API image
         run: docker build -t siniko-api:ci ./backend
       - name: Trivy scan API
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: siniko-api:ci
           format: table
