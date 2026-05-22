@@ -1,0 +1,19 @@
+name: CD AWS
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  deploy:
+    name: Déploiement (Terraform + ECS)
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder déploiement
+        run: |
+          echo "Configurer AWS_DEPLOY_ENABLED et secrets AWS pour activer le CD."
+          echo "Voir infra/terraform/README.md"

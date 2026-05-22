@@ -1,0 +1,33 @@
+{
+  "title": "SINIKO API — Logs sécurité",
+  "uid": "siniko-api-logs",
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Requêtes HTTP (logs JSON)",
+      "type": "logs",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        {
+          "expr": "{service=\"siniko\"} |= \"http_request\"",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "title": "Erreurs 4xx/5xx",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        {
+          "expr": "{service=\"siniko\"} | json | status_code >= 400",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

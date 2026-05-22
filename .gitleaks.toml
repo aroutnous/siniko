@@ -1,0 +1,11 @@
+title = "SINIKO gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fichiers d'exemple sans secrets réels"
+paths = [
+  '''\.env\.example$''',
+  '''docs/''',
+]
