@@ -42,8 +42,8 @@ gh pr create   # ou via l’interface GitHub
 Après chaque changement :
 
 ```bash
-docker compose up -d --build api    # ou frontend, ou tout
-docker compose run --rm migrations  # si migration Alembic
+docker compose up -d --build backend    # ou frontend, ou tout
+# Migrations Alembic : automatiques au démarrage de siniko-backend
 curl http://localhost:8000/health
 # Tests API : http://localhost:8000/docs
 # UI : http://localhost:8080
@@ -53,7 +53,7 @@ curl http://localhost:8000/health
 Tests automatisés (optionnel en local avant commit) :
 
 ```bash
-docker compose exec api pytest
+docker compose exec backend pytest
 # ou depuis backend/ avec venv si vous préférez
 ```
 

@@ -73,7 +73,86 @@ docker compose up -d --build
 
 ---
 
-## 3. Vérifier que tout tourne
+## 3. `siniko-backend` / `siniko-frontend` arrêtés
+
+```bash
+docker compose logs backend
+```
+
+Reconstruire si besoin :
+
+```bash
+docker compose build --no-cache backend frontend
+docker compose up -d
+```
+
+---
+
+## 4. Noms des conteneurs (sans `-1`)
+
+Les conteneurs utilisent `container_name` : `siniko-postgres`, `siniko-backend`, etc.
+
+---
+
+## 5. Service `backend` vs dossier `backend/`
+
+- Dossier **`backend/`** = code source Python
+- Service Docker **`backend`** = conteneur qui exécute ce code (anciennement nommé `api` dans le compose)
+
+---
+
+## 6. Grafana — « Invalid username or password »
+
+**Cause** : au **premier** lancement, Grafana enregistre le mot de passe admin dans le volume `siniko_grafana_data`. Changer `.env` ensuite **ne met pas à jour** ce mot de passe.
+
+**Solution A — réinitialiser le mot de passe (garde dashboards)** :
+
+```bash
+docker compose exec grafana grafana-cli admin reset-admin-password 'VOTRE_NOUVEAU_MDP'
+```
+
+Utilisez exactement la valeur de `GF_SECURITY_ADMIN_PASSWORD` dans `.env`, ou choisissez-en une nouvelle et mettez-la aussi dans `.env`.
+
+**Solution B — repartir de zéro (efface réglages Grafana)** :
+
+```bash
+docker compose stop grafana
+docker volume rm siniko_grafana_data
+docker compose up -d grafana
+```
+
+Au redémarrage, Grafana relit `GF_SECURITY_ADMIN_USER` et `GF_SECURITY_ADMIN_PASSWORD` depuis `.env`.
+
+Login : http://localhost:3000 — utilisateur **`admin`** (valeur de `GF_SECURITY_ADMIN_USER`, pas votre email).
+
+---
+
+## 7. pgAdmin — `Exited (1)` — email invalide
+
+pgAdmin 8 refuse certains emails (ex. `admin@siniko.local`).
+
+Dans `.env` :
+
+```env
+PGADMIN_DEFAULT_EMAIL=admin@siniko.dev
+```
+
+Puis : `docker compose up -d pgadmin`
+
+---
+
+## 8. Frontend — `Permission denied` sur nginx
+
+Reconstruire l’image frontend après correction du Dockerfile :
+
+```bash
+docker compose build --no-cache frontend
+docker compose up -d frontend
+```
+
+---
+
+## 9. Vérifier que tout tourne
 
 ```bash
 docker compose ps
@@ -93,5 +172,5 @@ git init && git add . && git commit -m "chore: bootstrap"
 pre-commit install
 docker compose pull           # peut prendre plusieurs minutes
 docker compose up -d --build
-docker compose logs migrations
+docker compose logs backend
 ```
