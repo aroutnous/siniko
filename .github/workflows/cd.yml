@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Placeholder déploiement
         run: |
           echo "Configurer AWS_DEPLOY_ENABLED et secrets AWS pour activer le CD."
