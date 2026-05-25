@@ -7,6 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Corriger les CVE OS (Trivy CI) sans changer l'application
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system siniko && adduser --system --ingroup siniko siniko
 
 COPY requirements.txt .

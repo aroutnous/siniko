@@ -206,7 +206,15 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   aquasec/trivy:0.63.0 image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 siniko-api:ci
 ```
 
-Si le scan signale des CVE **CRITICAL/HIGH** sur l’image API, mettre à jour les paquets de base dans `backend/Dockerfile` ou ajuster temporairement la politique (documenter dans le rapport de stage).
+Si le scan signale des CVE **CRITICAL/HIGH** sur l’image API (ex. `libgnutls30` sur Debian bookworm), ajouter dans `backend/Dockerfile` avant `USER siniko` :
+
+```dockerfile
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Puis reconstruire : `docker build -t siniko-api:ci ./backend` et relancer Trivy localement si besoin.
 
 ---
 
