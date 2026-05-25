@@ -199,7 +199,14 @@ git commit -m "chore: retirer coverage du suivi Git"
 
 **Cause** : tag GitHub invalide (préfixe `v` requis : `v0.31.0`, pas `0.28.0` seul).
 
-**Correction** : dans `.github/workflows/ci.yml`, utiliser `aquasecurity/trivy-action@v0.31.0` (ou une version listée sur [trivy-action releases](https://github.com/aquasecurity/trivy-action/tags)).
+**Correction** : scanner via l’image Docker officielle (évite l’échec d’install du binaire par `trivy-action`) :
+
+```yaml
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:0.63.0 image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 siniko-api:ci
+```
+
+Si le scan signale des CVE **CRITICAL/HIGH** sur l’image API, mettre à jour les paquets de base dans `backend/Dockerfile` ou ajuster temporairement la politique (documenter dans le rapport de stage).
 
 ---
 
