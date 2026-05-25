@@ -163,6 +163,72 @@ Attendu : `{"status":"ok","service":"siniko-api"}`
 
 ---
 
+## 10. CI GitHub Actions — jobs en échec (run typique sur `main`)
+
+### Frontend — ESLint sur des centaines de fichiers
+
+**Symptôme** : job *Frontend — lint & tests* échoue avec des erreurs dans `frontend/coverage/lcov-report/*.js`.
+
+**Cause** : le dossier `frontend/coverage/` (rapport Vitest/Istanbul) a été commité par erreur. ESLint avec `--max-warnings 0` analyse tout le dépôt.
+
+**Correction** :
+
+```bash
+echo "frontend/coverage/" >> .gitignore   # déjà dans le repo si corrigé
+git rm -r --cached frontend/coverage
+git commit -m "chore: retirer coverage du suivi Git"
+```
+
+`frontend/eslint.config.js` doit ignorer `coverage/`. Ne pas versionner les rapports de couverture.
+
+---
+
+### Backend — Bandit B104 (`0.0.0.0`)
+
+**Symptôme** : *Backend — lint & tests* échoue sur `app/core/config.py` (bind all interfaces).
+
+**Cause** : `API_HOST` par défaut à `0.0.0.0` pour Docker — légitime en conteneur, mais Bandit signale B104.
+
+**Correction** : `backend/pyproject.toml` contient `skips = ["B104"]` et la CI exécute `bandit -r app -ll -c pyproject.toml`. Ne pas retirer le skip sans changer le bind en production.
+
+---
+
+### Docker — Trivy « version not found »
+
+**Symptôme** : job *Docker — Hadolint & Trivy* échoue immédiatement sur `aquasecurity/trivy-action@0.28.0`.
+
+**Cause** : tag GitHub invalide (préfixe `v` requis : `v0.31.0`, pas `0.28.0` seul).
+
+**Correction** : dans `.github/workflows/ci.yml`, utiliser `aquasecurity/trivy-action@v0.31.0` (ou une version listée sur [trivy-action releases](https://github.com/aquasecurity/trivy-action/tags)).
+
+---
+
+### Semgrep — dizaines de findings sur `coverage/` ou ESLint
+
+**Symptôme** : job *SAST (Semgrep OWASP)* bloque avec des règles `gitlab.eslint.*` ou `dockerfile.security.missing-user`.
+
+**Causes** :
+
+1. Scan de `frontend/coverage/` (faux positifs massifs).
+2. Pack `p/eslint` trop strict pour un bootstrap.
+3. Dockerfile frontend sans `USER` (règle conteneur non-root).
+
+**Corrections** :
+
+- Fichier `.semgrepignore` à la racine (coverage, `node_modules`, `dist`, etc.).
+- Retirer `p/eslint` du workflow ; garder `p/owasp-top-ten`, `p/python`, `p/typescript`.
+- Dockerfile frontend : `USER nginx` + `chown` sur cache/logs nginx (voir section 8).
+
+---
+
+### CI — gate rouge alors que les autres jobs semblent OK
+
+**Cause** : le job agrégateur exige le succès de gitleaks, backend, frontend, semgrep et docker-security.
+
+Vérifier l’onglet **Actions** sur GitHub pour le job réellement en échec, pas seulement le gate.
+
+---
+
 ## 4. Ordre recommandé au premier lancement
 
 ```bash

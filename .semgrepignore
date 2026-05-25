@@ -1,0 +1,10 @@
+# Artefacts de build et rapports — pas du code source
+frontend/coverage/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+dist/
+htmlcov/
+.pytest_cache/
+.venv/
+venv/
