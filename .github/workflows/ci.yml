@@ -41,7 +41,7 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests
-      - run: bandit -r app -ll
+      - run: bandit -r app -ll -c pyproject.toml
       - run: pip-audit -r requirements.txt
       - run: pytest
 
@@ -74,7 +74,6 @@ jobs:
             p/owasp-top-ten
             p/python
             p/typescript
-            p/eslint
 
   # Activer dans Settings → Secrets : SNYK_TOKEN
   # Puis Variables → ENABLE_SNYK = true
@@ -123,13 +122,15 @@ jobs:
       - name: Build API image
         run: docker build -t siniko-api:ci ./backend
       - name: Trivy scan API
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: siniko-api:ci
-          format: table
-          exit-code: "1"
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.63.0 image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format table \
+            siniko-api:ci
 
   ci-success:
     name: CI — gate

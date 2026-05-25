@@ -2,282 +2,377 @@
 
 Document de référence pour le stage **HESTIM / THL** — développement pas à pas (vibe coding maîtrisé).
 
-**Usage** : copiez **un seul** bloc « Prompt à envoyer » dans le chat, validez, committez, PR, merge — puis passez au suivant.
+**Usage** : une session → démarrer l’app → un prompt → valider → Git → PR → merge → prompt suivant.
 
 ---
 
 ## Table des matières
 
 1. [Contexte projet](#1-contexte-projet)
-2. [Stack & architecture](#2-stack--architecture)
-3. [Workflow Git & branches](#3-workflow-git--branches)
-4. [Pipeline DevSecOps (shift left)](#4-pipeline-devsecops-shift-left)
-5. [Environnement local (100 % Docker)](#5-environnement-local-100--docker)
-6. [Protection de branche (repo public)](#6-protection-de-branche-repo-public)
-7. [Convention des prompts](#7-convention-des-prompts)
-8. [Phase 0 — Fondations (fait / rappel)](#phase-0--fondations)
+2. [À chaque session de travail](#2-à-chaque-session-de-travail)
+3. [Schémas visuels du workflow](#3-schémas-visuels-du-workflow)
+4. [Pipeline DevSecOps — étapes, outils, failles](#4-pipeline-devsecops--étapes-outils-failles)
+5. [Stack & architecture](#5-stack--architecture)
+6. [Protection de branche](#6-protection-de-branche)
+7. [Modèle Git (avant / après chaque prompt)](#7-modèle-git-avant--après-chaque-prompt)
+8. [Phase 0 — Fondations](#phase-0--fondations)
 9. [Phase 1 — Auth & utilisateurs](#phase-1--auth--utilisateurs)
 10. [Phase 2 — Élèves](#phase-2--élèves)
 11. [Phase 3 — Notes](#phase-3--notes)
-12. [Phase 4 — Comptabilité (MVP)](#phase-4--comptabilité-mvp)
-13. [Phase 5 — Frontend par module](#phase-5--frontend-par-module)
-14. [Phase 6 — DevSecOps (renforcement)](#phase-6--devsecops-renforcement)
-15. [Phase 7 — AWS & IaC](#phase-7--aws--iac)
+12. [Phase 4 — Comptabilité](#phase-4--comptabilité-mvp)
+13. [Phase 5 — Frontend](#phase-5--frontend-par-module)
+14. [Phase 6 — DevSecOps+](#phase-6--devsecops-renforcement)
+15. [Phase 7 — AWS](#phase-7--aws--iac)
 16. [Phase 8 — Supervision](#phase-8--supervision)
-17. [Phase 9 — Tests offensifs & rapport](#phase-9--tests-offensifs--rapport)
-18. [Phase 10 — Optionnels (CDC+)](#phase-10--optionnels)
-19. [Index rapide des prompts](#index-rapide-des-prompts)
+17. [Phase 9 — Pentest](#phase-9--tests-offensifs--rapport)
+18. [Phase 10 — Optionnels](#phase-10--optionnels)
+19. [Index des prompts](#index-rapide-des-prompts)
 
 ---
 
 ## 1. Contexte projet
 
-| Élément | Détail |
-|---------|--------|
-| **Produit** | SaaS de gestion scolaire (école cliente) |
-| **Objectif stage** | App fonctionnelle + chaîne **DevSecOps** + déploiement **AWS** + supervision + pentest |
-| **Méthode** | Vibe coding (IA) avec relecture humaine, SAST/SCA, CI bloquante |
-| **Référentiel sécu** | OWASP Top 10, bonnes pratiques ASVS L1 (rapport) |
-| **Périmètre MVP** | Users/RBAC, élèves, notes, compta simple — Mobile Money **option** |
-| **Hors scope** | Maintenance post-stage, intégration SI tiers école |
 
-### Rôles métier (CDC)
+| Élément            | Détail                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| **Produit**        | SaaS gestion scolaire                                                               |
+| **Objectif stage** | App + DevSecOps + AWS + supervision + pentest                                       |
+| **Repo**           | [https://github.com/aroutnous/siniko](https://github.com/aroutnous/siniko) (public) |
+| **Référentiel**    | OWASP Top 10                                                                        |
 
-| Rôle | Périmètre |
-|------|-----------|
-| **Administrateur** | Système, utilisateurs, configuration |
-| **Directeur** | Consultation globale, rapports, validation |
-| **Secrétariat** | Inscriptions, élèves, classes, documents |
-| **Comptabilité** | Paiements, reçus, suivi financier |
 
----
+### Rôles métier
 
-## 2. Stack & architecture
 
-| Couche | Technologie |
-|--------|-------------|
-| Backend | FastAPI 3.12, Pydantic, SQLAlchemy 2, Alembic |
-| Frontend | React 18, Vite, TypeScript, Tailwind (ou shadcn plus tard) |
-| BDD | PostgreSQL 16 |
-| Auth | JWT access + refresh, bcrypt |
-| Conteneurs | Docker Compose (Mac M4 ARM64) |
-| CI/CD | GitHub Actions |
-| Registre | GHCR / ECR (phase AWS) |
-| Supervision locale | Loki + Grafana + Promtail |
-| Supervision prod | CloudWatch (+ Wazuh amd64 optionnel) |
-| IaC | Terraform + Checkov |
-| DAST | OWASP ZAP, Burp Community |
+| Rôle           | Périmètre                  |
+| -------------- | -------------------------- |
+| Administrateur | Système, utilisateurs      |
+| Directeur      | Consultation, rapports     |
+| Secrétariat    | Élèves, classes, documents |
+| Comptabilité   | Paiements, reçus           |
 
-Monorepo :
-
-```text
-siniko/
-├── backend/          # API FastAPI
-├── frontend/         # React
-├── infra/terraform/  # AWS
-├── monitoring/       # Loki/Grafana
-├── docs/             # documentation
-└── .github/workflows/
-```
 
 ---
 
-## 3. Workflow Git & branches
+## 2. À chaque session de travail
 
-### Boucle par prompt
+Quand vous **reprenez** après avoir tout arrêté (Mac redémarré, `docker compose down`, fermeture Cursor, etc.).
 
-```text
-git checkout main && git pull
-git checkout -b feat/<id>-<court-resume>
-    ↓
-[Prompt IA → code ciblé]
-    ↓
-Vérification locale (Docker, Swagger, pgAdmin, tests)
-    ↓
-git add … && git commit -m "feat(scope): description"   ← pre-commit
-git push -u origin feat/…
-    ↓
-PR sur GitHub (site web) → CI verte → merge main
-```
-
-### Conventions
-
-| Élément | Format |
-|---------|--------|
-| Branche | `feat/auth-login`, `fix/ci-workflow`, `chore/deps` |
-| Commit | `feat(auth): …`, `fix(docker): …`, `test(students): …` |
-| PR | Une PR par prompt ou groupe cohérent (pas tout l’app) |
-
-### Commandes Git (rappel)
+### Checklist de reprise (ordre recommandé)
 
 ```bash
-git status
-git add chemin/fichier.py    # ou git add -A
-git diff --staged
-git commit -m "feat(auth): modèles User et Role"
-git push -u origin feat/auth-models
-# PR : bandeau jaune « Compare & pull request » sur GitHub
+# 1. Ouvrir le projet
+cd ~/siniko
+
+# 2. Docker Desktop — lancer l’application (baleine active)
+
+# 3. Synchroniser le code
+git checkout main
+git pull origin main
+
+# 4. Vérifier .env (une seule fois par machine si déjà fait)
+test -f .env || cp .env.example .env
+# → éditer .env si besoin (secrets, pgAdmin, Grafana)
+
+# 5. Démarrer toute la stack
+docker compose up -d --build
+
+# 6. Attendre ~30 s puis vérifier
+docker compose ps -a
 ```
 
-### Vibe coding (rapport de stage)
+### État attendu (`docker compose ps`)
 
-- Noter ce qui a été **généré par IA** vs **relu/corrigé** par vous.
-- Taux COMPILATIO : citer les outils de contrôle (pre-commit, CI).
 
----
+| Conteneur                                    | STATUS       |
+| -------------------------------------------- | ------------ |
+| siniko-postgres                              | Up (healthy) |
+| siniko-backend                               | Up (healthy) |
+| siniko-frontend                              | Up           |
+| siniko-pgadmin                               | Up           |
+| siniko-grafana, siniko-loki, siniko-promtail | Up           |
+| *(aucun Exited sauf anciens tests)*          |              |
 
-## 4. Pipeline DevSecOps (shift left)
 
-> **Objectif de chaque étape (détaillé)** : voir **[pipeline-securite.md](pipeline-securite.md)**
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ SHIFT LEFT                                                              │
-├─────────────────────────────────────────────────────────────────────────┤
-│ 1. IDE + IA (Cursor)     → génération code                              │
-│ 2. pre-commit (Mac)      → gitleaks, hadolint, ruff  ❌ bloque commit   │
-│ 3. Tests locaux          → pytest, vitest (optionnel avant commit)      │
-│ 4. git push + PR         → GitHub Actions CI        ❌ bloque merge*    │
-│ 5. Merge main            → build images, préparation CD                 │
-│ 6. Terraform + Checkov   → infra AWS (phase 7)                          │
-│ 7. Deploy AWS (ECS/RDS)  → phase 7                                        │
-│ 8. CloudWatch / Loki     → supervision                                    │
-│ 9. OWASP ZAP / Burp      → DAST, rapport vulnérabilités                   │
-└─────────────────────────────────────────────────────────────────────────┘
-* Merge bloqué si : repo public + branch protection + check « CI — gate » requis
-```
-
-### pre-commit (local)
+### Vérifications rapides
 
 ```bash
-pre-commit install
-pre-commit run --all-files   # vérification complète avant grosse PR
+curl -s http://localhost:8000/health
+# → {"status":"ok","service":"siniko-api"}
+
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/
+# → 200
 ```
 
-| Hook | Fichiers concernés |
-|------|-------------------|
-| gitleaks | Tout le repo |
-| hadolint | `Dockerfile` modifiés |
-| ruff / ruff-format | `backend/**/*.py` modifiés |
+### URLs de la session
 
-Si seuls des `.md` ou `.yml` changent → ruff/hadolint **skipped** (normal).
 
-### CI GitHub (`.github/workflows/ci.yml`)
+| Service     | URL                                                                    |
+| ----------- | ---------------------------------------------------------------------- |
+| API Swagger | [http://localhost:8000/docs](http://localhost:8000/docs)               |
+| Frontend    | [http://localhost:8080](http://localhost:8080)                         |
+| pgAdmin     | [http://localhost:5050](http://localhost:5050) (host BDD : `postgres`) |
+| Grafana     | [http://localhost:3000](http://localhost:3000)                         |
 
-| Job | Outil | Rôle |
-|-----|-------|------|
-| Secrets (gitleaks) | Gitleaks | Secrets dans Git |
-| Backend — lint & tests | Ruff, Bandit, pip-audit, pytest | Python ≥ 80 % coverage |
-| Frontend — lint & tests | ESLint, Vitest | JS/TS |
-| SAST (Semgrep OWASP) | Semgrep | OWASP Top 10 |
-| SCA (Snyk) | Snyk | Si variable `ENABLE_SNYK=true` + secret `SNYK_TOKEN` |
-| SonarCloud | Sonar | Si `ENABLE_SONAR=true` + `SONAR_TOKEN` |
-| Docker — Hadolint & Trivy | Hadolint, Trivy | Images Docker |
-| **CI — gate** | Agrégation | **Check à exiger sur `main`** |
 
-### IaC (`.github/workflows/iac.yml`)
+### Si vous travaillez sur une feature en cours
 
-Terraform `fmt` / `validate` + **Checkov** sur `infra/terraform/`.
+```bash
+git checkout feat/VOTRE-BRANCHE
+git pull origin feat/VOTRE-BRANCHE   # si déjà poussée
+docker compose up -d --build backend   # ou frontend selon le prompt
+```
 
-### CD (`.github/workflows/cd.yml`)
+### Commandes utiles pendant la session
 
-Activé plus tard via variable `AWS_DEPLOY_ENABLED=true`.
+```bash
+docker compose logs -f backend          # suivre l’API
+docker compose exec backend pytest     # tests Python
+docker compose up -d --build backend   # après modif code backend
+docker compose up -d --build frontend  # après modif front
+pre-commit run --all-files             # avant grosse PR
+```
 
-### Secrets GitHub (Settings → Secrets)
+### Fin de session (arrêt propre)
 
-| Secret | Usage |
-|--------|--------|
-| `SNYK_TOKEN` | Snyk (optionnel) |
-| `SONAR_TOKEN` | SonarCloud (optionnel) |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Déploiement AWS |
-
-Variables (Settings → Variables) : `ENABLE_SNYK`, `ENABLE_SONAR` = `true` quand prêt.
+```bash
+docker compose stop          # arrête les conteneurs, garde les données
+# ou
+docker compose down          # idem
+# docker compose down -v     # ⚠️ SUPPRIME les données Postgres locales
+```
 
 ---
 
-## 5. Environnement local (100 % Docker)
+## 3. Schémas visuels du workflow
+
+### 3.1 — Vue globale (session → production)
+
+```mermaid
+flowchart TB
+  subgraph session [Chaque session]
+    A[Docker Desktop ON] --> B[git pull main]
+    B --> C[docker compose up -d --build]
+    C --> D[Prompt granulaire + IA]
+  end
+
+  subgraph local [Mac — shift left]
+    D --> E[Tests manuels / Swagger]
+    E --> F[git commit]
+    F --> G{pre-commit}
+    G -->|non| H[Corriger]
+    H --> F
+    G -->|oui| I[git push]
+  end
+
+  subgraph github [GitHub]
+    I --> J[Pull Request]
+    J --> K{CI DevSecOps}
+    K -->|rouge| L[Corriger + push]
+    L --> K
+    K -->|vert| M{Branch protection}
+    M -->|CI gate OK| N[Merge main]
+  end
+
+  subgraph later [Phases ultérieures]
+    N --> O[Terraform + Checkov]
+    O --> P[Deploy AWS ECS]
+    P --> Q[CloudWatch / ZAP]
+  end
+```
+
+
+
+### 3.2 — pre-commit (détail — votre stack locale)
+
+```mermaid
+flowchart LR
+  subgraph mac [Mac M4 — pre-commit]
+    A[Code + IA] --> B[gitleaks]
+    B --> C[hadolint]
+    C --> D[ruff + ruff-format]
+    D --> E{OK ?}
+    E -->|non| F[Commit bloqué]
+    E -->|oui| G[git commit OK]
+  end
+  G --> H[git push]
+```
+
+
+
+### 3.3 — CI GitHub (Pull Request)
+
+```mermaid
+flowchart TB
+  PUSH[git push / PR] --> GL[gitleaks]
+  PUSH --> BE[Backend: ruff, bandit, pip-audit, pytest]
+  PUSH --> FE[Frontend: ESLint, Vitest]
+  PUSH --> SG[Semgrep OWASP]
+  PUSH --> DK[Hadolint + Trivy]
+  GL --> GATE[CI — gate]
+  BE --> GATE
+  FE --> GATE
+  SG --> GATE
+  DK --> GATE
+  GATE -->|success| MERGE[Merge autorisé]
+  GATE -->|failure| BLOCK[Merge bloqué]
+```
+
+
+
+---
+
+## 4. Pipeline DevSecOps — étapes, outils, failles
+
+Chaque étape : **objectif**, **outil**, **faille / risque OWASP** couvert, **quand**, **bloque quoi**.
+
+
+| #   | Étape                | Outil / technologie                 | Objectif                            | Faille / vulnérabilité visée                                | Exécution       | Bloque                |
+| --- | -------------------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------- | --------------------- |
+| 0   | Vibe coding          | Cursor + IA                         | Produire le code vite               | Code non sécurisé, secrets copiés, logique fausse           | Développement   | — (relecture humaine) |
+| 1   | Code source          | **Git**, **GitHub**                 | Versionner, auditer, PR             | Pas de traçabilité, push direct sur prod                    | Continu         | —                     |
+| 1b  | Protection branche   | GitHub Rules                        | Impossible de merger sans CI        | Contournement des contrôles                                 | Config `main`   | **Merge**             |
+| 2   | CI orchestration     | **GitHub Actions**                  | Automatiser les contrôles           | Incohérence entre postes dev                                | Push / PR       | —                     |
+| 3a  | SAST                 | **Semgrep**                         | Patterns vulnérables dans le code   | **A03 Injection**, **A01 Broken Access Control**, XSS, etc. | CI              | Merge*                |
+| 3b  | SAST Python          | **Ruff**, **Bandit**                | Qualité + patterns Python dangereux | `eval`, SQL brut, imports risqués                           | pre-commit + CI | Commit / Merge*       |
+| 3c  | SAST / qualité front | **ESLint**, **TypeScript**          | JS/TS sûr                           | **A03 XSS**, code mort, erreurs types                       | CI              | Merge*                |
+| 3d  | Qualité globale      | **SonarCloud** (opt.)               | Hotspots, dette, couverture         | Multiples catégories OWASP                                  | CI si activé    | Merge*                |
+| 4   | SCA                  | **pip-audit**, **npm audit**        | CVE dans les dépendances            | **A06 Vulnerable Components** (Log4j, etc.)                 | CI              | Merge*                |
+| 4b  | SCA + mises à jour   | **Dependabot**, **Snyk** (opt.)     | PR de bump + scan avancé            | Composants obsolètes                                        | GitHub / CI     | Merge*                |
+| 5a  | Lint Dockerfile      | **Hadolint**                        | Dockerfile durcis                   | **A05 Misconfiguration**, root, image `latest`              | pre-commit + CI | Commit / Merge*       |
+| 5b  | Scan image           | **Trivy**                           | CVE OS/paquets dans l’image         | **A06**, image compromise                                   | CI              | Merge*                |
+| 6   | Registre             | **GHCR** / **ECR**                  | Images versionnées post-CI          | Déploiement d’image non scannée                             | Phase AWS       | —                     |
+| 7   | CD                   | **ECS Fargate**, **ALB**, **ACM**   | Déploiement reproductible           | **A05** exposition réseau                                   | Phase 7         | —                     |
+| 8a  | Secrets Git          | **gitleaks**                        | Pas de clé dans le repo             | **A02** secrets exposés, fuite credentials                  | pre-commit + CI | **Commit** / Merge*   |
+| 8b  | Secrets runtime      | **.env`**, **AWS Secrets Manager**  | Secrets hors code                   | Fuite JWT/DB en clair                                       | Runtime         | —                     |
+| 8c  | Auth applicative     | **bcrypt**, **JWT**                 | Mots de passe & sessions            | **A07 Auth Failures**, credentials faibles                  | App (P1)        | —                     |
+| 9a  | Logs                 | **structlog** JSON                  | Traçabilité, alertes                | **A09 Logging Failures**                                    | Runtime         | —                     |
+| 9b  | Supervision locale   | **Loki**, **Grafana**, **Promtail** | Détection brute force, 5xx          | **A07** brute force, intrusion                              | Docker local    | —                     |
+| 9c  | Supervision prod     | **CloudWatch**                      | Alarmes prod                        | Attaque non détectée                                        | AWS P8          | —                     |
+| 9d  | SIEM (opt.)          | **Wazuh** (ECS amd64)               | Corrélation SIEM                    | APT, scans (optionnel)                                      | AWS             | —                     |
+| 10  | DAST                 | **OWASP ZAP**, **Burp**             | Tester l’app en marche              | Ce que le SAST ne voit pas (headers, IDOR HTTP)             | Post-deploy P9  | —                     |
+| 11  | IaC scan             | **Terraform**, **Checkov**          | Infra AWS sécurisée                 | SG 0.0.0.0/0, S3 public, RDS ouvert                         | CI `iac.yml`    | Merge*                |
+| —   | **CI — gate**        | Job agrégateur                      | Une seule porte pour GitHub         | Toute régression ci-dessus                                  | CI              | **Merge***            |
+
+
+ Merge bloqué si : repo **public** + branch protection + check **CI — gate** requis.
+
+> Détail long : [pipeline-securite.md](pipeline-securite.md)
+
+---
+
+## 5. Stack & architecture
+
+
+| Couche     | Technologie                                             |
+| ---------- | ------------------------------------------------------- |
+| Backend    | FastAPI 3.12, SQLAlchemy, Alembic                       |
+| Frontend   | React 18, Vite, TypeScript                              |
+| BDD        | PostgreSQL 16                                           |
+| Conteneurs | Docker Compose — `siniko-backend`, `siniko-frontend`, … |
+| CI         | `.github/workflows/ci.yml`                              |
+
+
+---
+
+## 6. Protection de branche
+
+1. **Settings → Branches → Add classic branch protection rule**
+2. Pattern : `main`
+3. **Require a pull request** + **Require status checks**
+4. Ajouter le check : `**CI — gate`**
+5. **Save**
+
+---
+
+## 7. Modèle Git (avant / après chaque prompt)
+
+Remplacez `BRANCHE` et `MESSAGE` dans chaque section.
+
+### Git — AVANT le prompt
 
 ```bash
 cd ~/siniko
-cp .env.example .env   # éditer secrets (APP_SECRET_KEY, JWT, Grafana, pgAdmin)
+git checkout main
+git pull origin main
+git checkout -b BRANCHE
+
+# Reprise stack (si pas déjà Up)
 docker compose up -d --build
+curl -s http://localhost:8000/health
 ```
 
-| Service | URL |
-|---------|-----|
-| API Swagger | http://localhost:8000/docs |
-| Frontend | http://localhost:8080 |
-| pgAdmin | http://localhost:5050 — host Postgres : **`postgres`** |
-| Grafana | http://localhost:3000 |
-
-| Conteneur | Nom fixe |
-|-----------|----------|
-| Postgres | `siniko-postgres` |
-| API | `siniko-backend` |
-| Front | `siniko-frontend` |
-
-Migrations : **automatiques** au démarrage de `siniko-backend` (`alembic upgrade head`).
+### Git — APRÈS validation du prompt
 
 ```bash
-docker compose up -d --build backend
-docker compose logs backend | tail -20
-docker compose exec backend pytest
-curl http://localhost:8000/health
+# 1. Vérifier l’app (adapter selon prompt)
+docker compose up -d --build backend    # et/ou frontend
+docker compose logs backend | tail -30
+docker compose exec backend pytest      # si backend touché
+
+# 2. Pre-commit (automatique au commit, ou test manuel)
+pre-commit run --all-files              # optionnel
+
+# 3. Commit
+git status
+git add -A                              # ou fichiers ciblés
+git commit -m "MESSAGE"                 # → hooks pre-commit
+
+# 4. Push + PR (site GitHub)
+git push -u origin BRANCHE
+# → github.com/aroutnous/siniko → « Compare & pull request »
+# → Base: main ← Compare: BRANCHE
+# → Attendre CI verte (job « CI — gate »)
+
+# 5. Après merge sur GitHub
+git checkout main
+git pull origin main
+git branch -d BRANCHE                     # optionnel
 ```
-
-Docs : [demarrage.md](demarrage.md), [migrations.md](migrations.md), [troubleshooting.md](troubleshooting.md).
-
----
-
-## 6. Protection de branche (repo public)
-
-1. **Settings → Branches → Add classic branch protection rule**
-2. **Branch name pattern** : `main`
-3. Cocher **Require a pull request before merging**
-4. Cocher **Require status checks to pass**
-5. **+ Add checks** → **`CI — gate`**
-6. Décocher bypass administrateur si vous voulez vous bloquer vous-même
-7. **Save**
-
-Sans check ajouté → merge possible même si CI rouge.
-
----
-
-## 7. Convention des prompts
-
-Chaque prompt ci-dessous contient :
-
-- **ID** : référence pour la branche (`feat/P1-03-…`)
-- **Prérequis** : prompts à avoir terminés
-- **Prompt à envoyer** : texte à copier-coller
-- **Done** : critères de validation
-- **Vérif** : commandes / URLs
-
-Vous pouvez ajouter vos propres prompts en fin de fichier ou entre les phases.
 
 ---
 
 ## Phase 0 — Fondations
 
-| ID | Statut | Sujet |
-|----|--------|-------|
-| P0-01 | ✅ | Bootstrap monorepo, Docker, pre-commit, CI |
-| P0-02 | ✅ | Repo public + branch protection |
-| P0-03 | ⬜ | CI verte stable sur `main` (corriger jobs rouges restants) |
 
-### P0-03 — Stabiliser la CI sur main
+| ID    | Statut | Sujet                    |
+| ----- | ------ | ------------------------ |
+| P0-01 | ✅      | Bootstrap                |
+| P0-02 | ✅      | Repo public + protection |
+| P0-03 | ⬜      | CI verte sur `main`      |
+
+
+### P0-03 — Stabiliser la CI
 
 **Branche** : `fix/ci-green`
 
-**Prompt à envoyer** :
+#### Git — avant
+
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b fix/ci-green
+docker compose up -d --build
+```
+
+#### Prompt à envoyer
 
 ```text
 Analyse les échecs de la dernière CI GitHub Actions sur siniko (jobs gitleaks, backend, frontend, docker) et corrige le minimum pour obtenir une CI verte sur main. Ne touche pas au métier. Documente la cause dans docs/troubleshooting.md si pertinent.
 ```
 
-**Done** : workflow Actions vert sur `main` ; check « CI — gate » disponible.
+#### Git — après
 
-**Vérif** : GitHub → Actions → dernier run `main` = Success.
+```bash
+pre-commit run --all-files
+git add -A
+git commit -m "fix(ci): pipeline DevSecOps verte sur main"
+git push -u origin fix/ci-green
+# PR → main → merge si CI — gate ✅
+git checkout main && git pull origin main
+```
+
+**Done** : Actions `main` = Success. **Vérif** : GitHub → Actions.
 
 ---
 
@@ -285,11 +380,18 @@ Analyse les échecs de la dernière CI GitHub Actions sur siniko (jobs gitleaks,
 
 ### P1-01 — Modèles User, Role, association
 
-**Branche** : `feat/P1-01-models-user-role`
+**Branche** : `feat/P1-01-models-user-role` · **Prérequis** : P0-03
 
-**Prérequis** : P0-03
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-01-models-user-role
+docker compose up -d --build
+```
+
+#### Prompt à envoyer
 
 ```text
 Étape auth 1/7 — Backend uniquement.
@@ -303,148 +405,226 @@ Générer la migration Alembic autogenerate. Pas d’endpoints API encore.
 Respecter : docstrings, pas de secret en dur, conventions du repo siniko.
 ```
 
-**Done** : tables en BDD après `docker compose up -d --build backend` ; visible dans pgAdmin.
+#### Git — après
 
-**Vérif** : `\dt` ou pgAdmin ; `alembic current` dans le conteneur backend.
+```bash
+docker compose up -d --build backend
+docker compose logs backend | tail -20
+docker compose exec backend alembic current
+git add backend/
+git commit -m "feat(auth): modèles User, Role et migration Alembic"
+git push -u origin feat/P1-01-models-user-role
+# PR → merge
+git checkout main && git pull origin main
+```
+
+**Done** : tables en pgAdmin. **Vérif** : [http://localhost:5050](http://localhost:5050)
 
 ---
 
-### P1-02 — Hash mot de passe (bcrypt)
+### P1-02 — Hash bcrypt
 
-**Branche** : `feat/P1-02-password-hash`
+**Branche** : `feat/P1-02-password-hash` · **Prérequis** : P1-01
 
-**Prérequis** : P1-01
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-02-password-hash
+docker compose up -d --build backend
+```
+
+#### Prompt à envoyer
 
 ```text
 Étape auth 2/7 — Sécurité mots de passe.
 
-Ajouter un service backend/app/services/password.py :
-- hash_password(plain) avec bcrypt
-- verify_password(plain, hash)
-
-Tests unitaires pytest. Pas d’API publique encore.
+Ajouter backend/app/services/password.py : hash_password, verify_password (bcrypt).
+Tests pytest. Pas d’API publique encore.
 ```
 
-**Done** : tests passent ; cost factor bcrypt documenté (OWASP).
+#### Git — après
+
+```bash
+docker compose exec backend pytest tests/ -q -k password
+git add backend/
+git commit -m "feat(auth): hash bcrypt et tests"
+git push -u origin feat/P1-02-password-hash
+git checkout main && git pull origin main
+```
 
 ---
 
 ### P1-03 — JWT access + refresh
 
-**Branche** : `feat/P1-03-jwt-tokens`
+**Branche** : `feat/P1-03-jwt-tokens` · **Prérequis** : P1-02
 
-**Prérequis** : P1-02
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-03-jwt-tokens
+docker compose up -d --build backend
+```
+
+#### Prompt à envoyer
 
 ```text
 Étape auth 3/7 — JWT.
 
-Implémenter backend/app/services/jwt.py :
-- create_access_token(sub, roles)
-- create_refresh_token(sub)
-- decode_token avec gestion d’erreurs
-
-Utiliser JWT_SECRET_KEY et durées depuis Settings (.env).
-Tests unitaires. Pas de routes encore.
+backend/app/services/jwt.py : create_access_token, create_refresh_token, decode_token.
+JWT_SECRET_KEY et durées depuis Settings. Tests unitaires.
 ```
 
-**Done** : tests JWT verts ; expiration courte access (15 min CDC).
+#### Git — après
+
+```bash
+docker compose exec backend pytest -q
+git add backend/
+git commit -m "feat(auth): service JWT access et refresh"
+git push -u origin feat/P1-03-jwt-tokens
+git checkout main && git pull origin main
+```
 
 ---
 
 ### P1-04 — POST /auth/login et /auth/refresh
 
-**Branche** : `feat/P1-04-auth-endpoints`
+**Branche** : `feat/P1-04-auth-endpoints` · **Prérequis** : P1-03
 
-**Prérequis** : P1-03
+#### Git — avant
 
-**Prompt à envoyer** :
-
-```text
-Étape auth 4/7 — Endpoints authentification.
-
-- POST /api/v1/auth/login (email, password) → access + refresh JSON
-- POST /api/v1/auth/refresh (refresh_token) → nouveau access
-- Réponses 401 génériques (pas de user enumeration)
-- Rate limiting simple en mémoire ou middleware (option basique)
-
-Schémas Pydantic, tests httpx. Seed optionnel : un admin de test via migration ou script documenté (.env.example).
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-04-auth-endpoints
+docker compose up -d --build backend
 ```
 
-**Done** : Swagger login fonctionne ; logs JSON sur échec login.
+#### Prompt à envoyer
 
-**Vérif** : http://localhost:8000/docs
+```text
+Étape auth 4/7 — Endpoints.
+
+POST /api/v1/auth/login, POST /api/v1/auth/refresh.
+401 génériques, rate limiting basique. Pydantic + tests httpx.
+Seed admin de test documenté.
+```
+
+#### Git — après
+
+```bash
+curl -s http://localhost:8000/health
+docker compose exec backend pytest -q
+# Test manuel : http://localhost:8000/docs
+git add backend/
+git commit -m "feat(auth): endpoints login et refresh JWT"
+git push -u origin feat/P1-04-auth-endpoints
+git checkout main && git pull origin main
+```
 
 ---
 
 ### P1-05 — Middleware RBAC
 
-**Branche** : `feat/P1-05-rbac`
+**Branche** : `feat/P1-05-rbac` · **Prérequis** : P1-04
 
-**Prérequis** : P1-04
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-05-rbac
+docker compose up -d --build backend
+```
+
+#### Prompt à envoyer
 
 ```text
 Étape auth 5/7 — RBAC.
 
-- Dépendance FastAPI get_current_user (Bearer JWT)
-- Décorateur ou dépendance require_roles("admin", …)
-- Route exemple GET /api/v1/auth/me protégée
-
-Tests : 401 sans token, 403 mauvais rôle, 200 bon rôle.
+get_current_user (Bearer), require_roles(...), GET /api/v1/auth/me protégée.
+Tests 401, 403, 200.
 ```
 
-**Done** : `/auth/me` protégé et testé.
+#### Git — après
+
+```bash
+docker compose exec backend pytest -q
+git add backend/
+git commit -m "feat(auth): middleware RBAC et route /auth/me"
+git push -u origin feat/P1-05-rbac
+git checkout main && git pull origin main
+```
 
 ---
 
 ### P1-06 — CRUD utilisateurs (admin)
 
-**Branche** : `feat/P1-06-users-crud`
+**Branche** : `feat/P1-06-users-crud` · **Prérequis** : P1-05
 
-**Prérequis** : P1-05
+#### Git — avant
 
-**Prompt à envoyer** :
-
-```text
-Étape auth 6/7 — Gestion utilisateurs (admin uniquement).
-
-Endpoints sous /api/v1/users :
-- GET list (pagination), GET by id
-- POST create (hash password), PATCH update, DELETE soft (is_active=false)
-- Attribution / révocation rôles
-
-RBAC : admin seulement. Validation Pydantic stricte.
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-06-users-crud
+docker compose up -d --build backend
 ```
 
-**Done** : admin peut créer un user secrétariat via Swagger.
+#### Prompt à envoyer
+
+```text
+Étape auth 6/7 — CRUD users admin.
+
+/api/v1/users : list, get, create, patch, soft delete, gestion rôles. RBAC admin.
+```
+
+#### Git — après
+
+```bash
+docker compose exec backend pytest -q
+git add backend/
+git commit -m "feat(auth): CRUD utilisateurs réservé admin"
+git push -u origin feat/P1-06-users-crud
+git checkout main && git pull origin main
+```
 
 ---
 
 ### P1-07 — Journal d’audit admin
 
-**Branche** : `feat/P1-07-audit-log`
+**Branche** : `feat/P1-07-audit-log` · **Prérequis** : P1-06
 
-**Prérequis** : P1-06
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko
+git checkout main && git pull origin main
+git checkout -b feat/P1-07-audit-log
+docker compose up -d --build backend
+```
+
+#### Prompt à envoyer
 
 ```text
 Étape auth 7/7 — Audit.
 
-- Modèle AuditLog : actor_id, action, resource, ip, payload_json, created_at
-- Migration Alembic
-- Enregistrer automatiquement : création user, changement rôle, désactivation
-- GET /api/v1/audit-logs (admin, pagination)
-
-Logs structlog corrélés. Pas de données sensibles en clair dans les logs.
+Modèle AuditLog, migration, log auto sur actions admin, GET /api/v1/audit-logs.
+Pas de données sensibles en clair dans les logs.
 ```
 
-**Done** : action admin visible en BDD et via API.
+#### Git — après
+
+```bash
+docker compose exec backend pytest -q
+git add backend/
+git commit -m "feat(auth): journal d audit des actions admin"
+git push -u origin feat/P1-07-audit-log
+git checkout main && git pull origin main
+```
 
 ---
 
@@ -452,36 +632,56 @@ Logs structlog corrélés. Pas de données sensibles en clair dans les logs.
 
 ### P2-01 — Modèles Class, Student, Enrollment
 
-**Branche** : `feat/P2-01-models-students`
+**Branche** : `feat/P2-01-models-students` · **Prérequis** : P1-05
 
-**Prérequis** : P1-05 minimum
+#### Git — avant
 
-**Prompt à envoyer** :
+```bash
+cd ~/siniko && git checkout main && git pull origin main
+git checkout -b feat/P2-01-models-students
+docker compose up -d --build backend
+```
+
+#### Prompt à envoyer
 
 ```text
-Module élèves 1/5 — Modèles.
+Module élèves 1/5 — Modèles Class, Student, Enrollment + migration Alembic. Pas d’API.
+```
 
-- Class (nom, niveau, année scolaire)
-- Student (infos personnelles, contacts parents, is_active)
-- Enrollment (student ↔ class, année)
+#### Git — après
 
-Migration Alembic. Relations SQLAlchemy propres. Pas d’API encore.
+```bash
+docker compose up -d --build backend
+docker compose exec backend alembic current
+git add backend/ && git commit -m "feat(students): modèles et migration"
+git push -u origin feat/P2-01-models-students
+git checkout main && git pull origin main
 ```
 
 ---
 
-### P2-02 — CRUD élèves (secrétariat + admin)
+### P2-02 — CRUD élèves
 
-**Branche** : `feat/P2-02-students-crud`
+**Branche** : `feat/P2-02-students-crud` · **Prérequis** : P2-01
 
-**Prompt à envoyer** :
+#### Git — avant / après
+
+```bash
+# avant
+git checkout main && git pull && git checkout -b feat/P2-02-students-crud
+docker compose up -d --build backend
+```
 
 ```text
-Module élèves 2/5 — API CRUD.
+Module élèves 2/5 — CRUD /api/v1/students, RBAC secretariat/admin, tests.
+```
 
-/api/v1/students : list avec filtres (classe, nom), create, get, patch, soft delete.
-RBAC : secretariat, admin ; lecture seule directeur si pertinent.
-Tests pytest.
+```bash
+# après
+docker compose exec backend pytest -q
+git add backend/ && git commit -m "feat(students): API CRUD élèves"
+git push -u origin feat/P2-02-students-crud
+git checkout main && git pull origin main
 ```
 
 ---
@@ -490,13 +690,26 @@ Tests pytest.
 
 **Branche** : `feat/P2-03-enrollment`
 
-**Prompt à envoyer** :
+#### Git — avant
+
+```bash
+git checkout main && git pull && git checkout -b feat/P2-03-enrollment
+docker compose up -d --build backend
+```
+
+#### Prompt
 
 ```text
-Module élèves 3/5 — Affectation.
+Module élèves 3/5 — POST enroll, PATCH classe, historique par année.
+```
 
-POST /api/v1/students/{id}/enroll , PATCH changement de classe.
-Historique : garder enrollments par année scolaire.
+#### Git — après
+
+```bash
+docker compose exec backend pytest -q
+git add backend/ && git commit -m "feat(students): affectation classe"
+git push -u origin feat/P2-03-enrollment
+git checkout main && git pull origin main
 ```
 
 ---
@@ -505,435 +718,269 @@ Historique : garder enrollments par année scolaire.
 
 **Branche** : `feat/P2-04-students-search`
 
-**Prompt à envoyer** :
+#### Git — avant / après (même schéma)
+
+```bash
+git checkout main && git pull && git checkout -b feat/P2-04-students-search
+docker compose up -d --build backend
+```
 
 ```text
-Module élèves 4/5 — Recherche.
+Module élèves 4/5 — Filtres q, class_id, level, year, pagination.
+```
 
-Query params : q (nom), class_id, level, year.
-Index BDD si nécessaire. Pagination limit/offset.
+```bash
+docker compose exec backend pytest -q
+git add backend/ && git commit -m "feat(students): recherche et filtres"
+git push -u origin feat/P2-04-students-search
+git checkout main && git pull origin main
 ```
 
 ---
 
-### P2-05 — Export liste élèves (CSV)
+### P2-05 — Export CSV
 
 **Branche** : `feat/P2-05-students-export`
 
-**Prompt à envoyer** :
+#### Git — avant / après
+
+```bash
+git checkout main && git pull && git checkout -b feat/P2-05-students-export
+docker compose up -d --build backend
+```
 
 ```text
-Module élèves 5/5 — Export.
+Module élèves 5/5 — GET export CSV, RBAC, minimisation RGPD.
+```
 
-GET /api/v1/students/export?format=csv — RBAC secretariat/admin.
-En-têtes CSV, pas de données inutiles (minimisation RGPD).
+```bash
+git add backend/ && git commit -m "feat(students): export CSV"
+git push -u origin feat/P2-05-students-export
+git checkout main && git pull origin main
 ```
 
 ---
 
 ## Phase 3 — Notes
 
-### P3-01 — Modèles Subject, Term, Grade
+Pour **P3-01** à **P3-05**, appliquez le même schéma Git :
 
-**Branche** : `feat/P3-01-models-grades`
 
-**Prompt à envoyer** :
+| ID    | Branche                          | Commit suggéré                             |
+| ----- | -------------------------------- | ------------------------------------------ |
+| P3-01 | `feat/P3-01-models-grades`       | `feat(grades): modèles Subject Term Grade` |
+| P3-02 | `feat/P3-02-grades-crud`         | `feat(grades): CRUD notes`                 |
+| P3-03 | `feat/P3-03-averages`            | `feat(grades): calcul moyennes`            |
+| P3-04 | `feat/P3-04-bulletin`            | `feat(grades): bulletin PDF/HTML`          |
+| P3-05 | `feat/P3-05-class-dashboard-api` | `feat(grades): stats par classe`           |
 
-```text
-Module notes 1/5 — Modèles.
 
-Subject, Term (trimestre), Grade (student, subject, term, value, coefficient, teacher_id optionnel).
-Contraintes : notes 0–20, unicité student+subject+term.
-Migration Alembic.
+#### Git — avant (exemple P3-01)
+
+```bash
+git checkout main && git pull && git checkout -b feat/P3-01-models-grades
+docker compose up -d --build backend
 ```
 
----
+#### Prompts (résumé)
 
-### P3-02 — Saisie notes (secrétariat / enseignant selon RBAC)
+- **P3-01** : Modèles Subject, Term, Grade + migration  
+- **P3-02** : CRUD `/api/v1/grades` + RBAC  
+- **P3-03** : Service moyennes + `report-card`  
+- **P3-04** : Bulletin HTML/PDF  
+- **P3-05** : `GET /classes/{id}/grades/summary`
 
-**Branche** : `feat/P3-02-grades-crud`
+#### Git — après (chaque prompt)
 
-**Prompt à envoyer** :
-
-```text
-Module notes 2/5 — Saisie.
-
-CRUD /api/v1/grades avec RBAC adapté.
-Validation Pydantic. Tests.
-```
-
----
-
-### P3-03 — Calcul moyennes
-
-**Branche** : `feat/P3-03-averages`
-
-**Prompt à envoyer** :
-
-```text
-Module notes 3/5 — Moyennes.
-
-Service de calcul : moyenne par matière, moyenne générale (coefficients).
-GET /api/v1/students/{id}/report-card?term=...
-```
-
----
-
-### P3-04 — Bulletin PDF ou HTML imprimable
-
-**Branche** : `feat/P3-04-bulletin`
-
-**Prompt à envoyer** :
-
-```text
-Module notes 4/5 — Bulletin.
-
-Génération bulletin simple (HTML template ou PDF weasyprint) — endpoint GET.
-Pas de design complexe, données correctes et RBAC.
-```
-
----
-
-### P3-05 — Tableau de bord résultats par classe
-
-**Branche** : `feat/P3-05-class-dashboard-api`
-
-**Prompt à envoyer** :
-
-```text
-Module notes 5/5 — Stats classe.
-
-GET /api/v1/classes/{id}/grades/summary — moyennes, min, max, effectif.
-RBAC directeur, secretariat.
+```bash
+docker compose up -d --build backend
+docker compose exec backend pytest -q
+git add … && git commit -m "MESSAGE"
+git push -u origin BRANCHE
+# PR → merge → git checkout main && git pull
 ```
 
 ---
 
 ## Phase 4 — Comptabilité (MVP)
 
-### P4-01 — Modèle Payment
 
-**Branche** : `feat/P4-01-models-payments`
+| ID    | Branche                        | Commit suggéré                     |
+| ----- | ------------------------------ | ---------------------------------- |
+| P4-01 | `feat/P4-01-models-payments`   | `feat(finance): modèle Payment`    |
+| P4-02 | `feat/P4-02-payments-crud`     | `feat(finance): CRUD paiements`    |
+| P4-03 | `feat/P4-03-receipt`           | `feat(finance): reçu PDF`          |
+| P4-04 | `feat/P4-04-finance-dashboard` | `feat(finance): dashboard impayés` |
 
-**Prompt à envoyer** :
 
-```text
-Module compta 1/4 — Modèle.
+**Git avant** : `git checkout main && git pull && git checkout -b BRANCHE` + `docker compose up -d --build backend`  
 
-Payment : student_id, amount, currency (MAD), paid_at, method (cash, transfer), reference, created_by.
-Migration Alembic.
-```
+**Git après** : pytest → commit → push → PR → `git pull` sur main.
 
----
+#### Prompts (texte complet)
 
-### P4-02 — Enregistrement paiements
-
-**Branche** : `feat/P4-02-payments-crud`
-
-**Prompt à envoyer** :
-
-```text
-Module compta 2/4 — API.
-
-CRUD paiements RBAC comptabilite, admin.
-Lien élève obligatoire. Tests.
-```
-
----
-
-### P4-03 — Reçu PDF simple
-
-**Branche** : `feat/P4-03-receipt`
-
-**Prompt à envoyer** :
-
-```text
-Module compta 3/4 — Reçu.
-
-GET /api/v1/payments/{id}/receipt — PDF ou HTML imprimable avec numéro de reçu unique.
-```
-
----
-
-### P4-04 — Tableau impayés / encaissements
-
-**Branche** : `feat/P4-04-finance-dashboard`
-
-**Prompt à envoyer** :
-
-```text
-Module compta 4/4 — Dashboard financier.
-
-GET /api/v1/finance/summary?year= — total encaissé, impayés (élèves sans paiement attendu — règle simple documentée).
-RBAC comptabilite, directeur.
-```
+**P4-01** : `Payment` model + Alembic.  
+**P4-02** : CRUD paiements RBAC comptabilite.  
+**P4-03** : `GET /payments/{id}/receipt`.  
+**P4-04** : `GET /finance/summary`.
 
 ---
 
 ## Phase 5 — Frontend par module
 
-> Une page / flux à la fois, branchée sur `VITE_API_BASE_URL`.
+Rebuild **frontend** après chaque prompt : `docker compose up -d --build frontend`
 
-### P5-01 — Layout + auth (login, token storage)
 
-**Branche** : `feat/P5-01-ui-auth`
+| ID    | Branche                     | Commit                           |
+| ----- | --------------------------- | -------------------------------- |
+| P5-01 | `feat/P5-01-ui-auth`        | `feat(ui): page login et tokens` |
+| P5-02 | `feat/P5-02-ui-rbac-routes` | `feat(ui): navigation RBAC`      |
+| P5-03 | `feat/P5-03-ui-students`    | `feat(ui): écrans élèves`        |
+| P5-04 | `feat/P5-04-ui-grades`      | `feat(ui): saisie notes`         |
+| P5-05 | `feat/P5-05-ui-payments`    | `feat(ui): comptabilité`         |
+| P5-06 | `feat/P5-06-ui-admin`       | `feat(ui): admin users et audit` |
 
-**Prompt à envoyer** :
 
-```text
-Frontend 1 — Auth UI.
+#### Git — avant (exemple P5-01)
 
-Page login, stockage token sécurisé (mémoire + refresh), intercepteur fetch vers API, déconnexion.
-React Router, layout minimal SINIKO (français). Pas de autres modules.
+```bash
+git checkout main && git pull && git checkout -b feat/P5-01-ui-auth
+docker compose up -d --build
 ```
 
----
-
-### P5-02 — Shell navigation + garde routes par rôle
-
-**Branche** : `feat/P5-02-ui-rbac-routes`
-
-**Prompt à envoyer** :
+#### Prompt P5-01
 
 ```text
-Frontend 2 — Navigation RBAC.
-
-Menu selon rôle (admin, directeur, secretariat, comptabilite). Routes protégées, redirect si non autorisé.
+Frontend 1 — Page login, tokens, intercepteur API, React Router, français.
 ```
 
----
+#### Git — après (frontend)
 
-### P5-03 à P5-06 — Écrans métier
-
-| ID | Prompt court |
-|----|----------------|
-| P5-03 | UI liste + formulaire élèves (consomme API students) |
-| P5-04 | UI saisie notes + affichage bulletin |
-| P5-05 | UI paiements + reçu |
-| P5-06 | UI admin utilisateurs + liste audit (lecture) |
-
-*(Détailler chaque prompt sur le modèle P5-01 quand vous y arrivez.)*
+```bash
+docker compose up -d --build frontend
+# Vérif : http://localhost:8080
+cd frontend && npm run lint && npm run test:coverage   # optionnel hors Docker
+git add frontend/ && git commit -m "feat(ui): page login et tokens"
+git push -u origin feat/P5-01-ui-auth
+git checkout main && git pull origin main
+```
 
 ---
 
 ## Phase 6 — DevSecOps (renforcement)
 
-### P6-01 — Activer SonarCloud sur la CI
 
-**Branche** : `chore/P6-01-sonar`
+| ID    | Branche                  | Fichiers typiques                  |
+| ----- | ------------------------ | ---------------------------------- |
+| P6-01 | `chore/P6-01-sonar`      | `sonar-project.properties`, README |
+| P6-02 | `chore/P6-02-snyk`       | `.github/workflows/ci.yml`, docs   |
+| P6-03 | `chore/P6-03-zap-dast`   | `.github/workflows/zap.yml`        |
+| P6-04 | `chore/P6-04-dependabot` | `.github/dependabot.yml`           |
 
-**Prompt à envoyer** :
 
-```text
-Configurer SonarCloud pour siniko : sonar-project.properties, secret GitHub, variable ENABLE_SONAR=true, documenter dans README. Quality Gate doit passer sur main.
-```
-
----
-
-### P6-02 — Activer Snyk (optionnel)
-
-**Branche** : `chore/P6-02-snyk`
-
-**Prompt à envoyer** :
-
-```text
-Activer Snyk dans la CI (ENABLE_SNYK, SNYK_TOKEN). Documenter dans docs/devsecops-workflow.md. Ne pas fail la CI si quota Snyk dépassé — proposer fallback pip-audit/npm audit.
-```
-
----
-
-### P6-03 — Workflow OWASP ZAP (DAST)
-
-**Branche** : `chore/P6-03-zap-dast`
-
-**Prompt à envoyer** :
-
-```text
-Ajouter un workflow GitHub Actions zap-baseline.yml déclenché manuellement ou sur schedule, ciblant l’URL de staging (variable ZAP_TARGET_URL). Documenter interprétation des alertes dans docs/.
-```
-
----
-
-### P6-04 — Dependabot : auto-merge ou groupement
-
-**Branche** : `chore/P6-04-dependabot`
-
-**Prompt à envoyer** :
-
-```text
-Revoir dependabot.yml : grouper les mises à jour mineures, ignorer les PR qui cassent la CI. Documenter la politique de mise à jour des dépendances pour le rapport de stage.
-```
+**Git avant** : branche `chore/...` depuis `main`.  
+**Git après** : souvent pas besoin de `docker compose` — vérifier **Actions** sur la PR.
 
 ---
 
 ## Phase 7 — AWS & IaC
 
-### P7-01 — Terraform VPC + RDS
 
-**Branche** : `feat/P7-01-tf-vpc-rds`
+| ID    | Branche                 |
+| ----- | ----------------------- |
+| P7-01 | `feat/P7-01-tf-vpc-rds` |
+| P7-02 | `feat/P7-02-tf-ecs`     |
+| P7-03 | `feat/P7-03-cd-aws`     |
 
-**Prompt à envoyer** :
 
-```text
-Terraform : modules VPC (public/privé), security groups, RDS PostgreSQL (siniko), Secrets Manager pour DATABASE_URL. Checkov doit passer. Pas de ECS encore. Documenter dans infra/terraform/README.md.
-```
+**Git après** : déclencher aussi workflow `**IaC Security`** (push sur `infra/**`).
 
----
-
-### P7-02 — ECS Fargate + ALB
-
-**Branche** : `feat/P7-02-tf-ecs`
-
-**Prompt à envoyer** :
-
-```text
-Terraform : ECR ou GHCR, ECS Fargate services backend + frontend, ALB, target groups, healthcheck /health. IAM moindre privilège.
-```
-
----
-
-### P7-03 — CD GitHub Actions → AWS
-
-**Branche** : `feat/P7-03-cd-aws`
-
-**Prompt à envoyer** :
-
-```text
-Activer cd.yml : build push image, deploy ECS sur tag v* ou workflow_dispatch. Secrets AWS documentés. Pas de secrets en clair.
+```bash
+git add infra/ .github/
+git commit -m "feat(aws): terraform VPC RDS ECS"
+git push -u origin BRANCHE
 ```
 
 ---
 
 ## Phase 8 — Supervision
 
-### P8-01 — Logs JSON + champs sécurité CloudWatch
 
-**Branche** : `feat/P8-01-cloudwatch-logs`
+| ID    | Branche                      |
+| ----- | ---------------------------- |
+| P8-01 | `feat/P8-01-cloudwatch-logs` |
+| P8-02 | `feat/P8-02-grafana-alerts`  |
+| P8-03 | `feat/P8-03-wazuh-aws`       |
 
-**Prompt à envoyer** :
 
-```text
-Configurer log driver / agrégation CloudWatch pour ECS. Metric filter sur status_code 401/403/5xx sur /api/v1/auth/login. Alarme SNS ou email (variable). Documenter dans docs/supervision.md.
-```
-
----
-
-### P8-02 — Règles alerte Grafana (local)
-
-**Branche** : `feat/P8-02-grafana-alerts`
-
-**Prompt à envoyer** :
-
-```text
-Ajouter règles d’alerte Loki/Grafana : brute force (401 login), pic 5xx. Fichiers provisioning dans monitoring/. Procédure de test documentée.
-```
-
----
-
-### P8-03 — Wazuh sur AWS amd64 (option CDC)
-
-**Branche** : `feat/P8-03-wazuh-aws`
-
-**Prompt à envoyer** :
-
-```text
-Documenter et fournir docker-compose ou Terraform optionnel pour Wazuh sur ECS amd64 uniquement (pas Mac ARM). Forward logs CloudWatch. Comparer avec Loki dans le rapport.
-```
+**Vérif locale P8-02** : [http://localhost:3000](http://localhost:3000) (Grafana).
 
 ---
 
 ## Phase 9 — Tests offensifs & rapport
 
-### P9-01 — Scénarios OWASP Top 10
 
-**Branche** : `docs/P9-01-pentest-scenarios`
+| ID    | Branche                        | Type        |
+| ----- | ------------------------------ | ----------- |
+| P9-01 | `docs/P9-01-pentest-scenarios` | docs        |
+| P9-02 | `fix/P9-02-zap-findings`       | code + docs |
+| P9-03 | `docs/P9-03-threat-model`      | docs        |
 
-**Prompt à envoyer** :
 
-```text
-Rédiger docs/pentest-scenarios.md : 10 scénarios alignés OWASP Top 10 pour SINIKO (injection, broken auth, IDOR élèves/notes, etc.). Format : objectif, étapes, résultat attendu, preuve.
-```
-
----
-
-### P9-02 — Exécution ZAP + remédiation
-
-**Branche** : `fix/P9-02-zap-findings`
-
-**Prompt à envoyer** :
-
-```text
-Exécuter OWASP ZAP baseline sur l’environnement de démo. Pour chaque finding High/Medium : corriger le code ou documenter le risque accepté. Mettre à jour docs/pentest-report.md (template).
-```
-
----
-
-### P9-03 — Modèle de menaces (STRIDE léger)
-
-**Branche** : `docs/P9-03-threat-model`
-
-**Prompt à envoyer** :
-
-```text
-Créer docs/threat-model.md : acteurs, actifs (données élèves, notes, paiements), diagramme de flux, menaces STRIDE, contre-mesures liées aux contrôles DevSecOps déjà en place.
-```
+**Git après P9-02** : joindre captures ZAP au rapport de stage.
 
 ---
 
 ## Phase 10 — Optionnels
 
-| ID | Sujet | Prompt résumé |
-|----|--------|----------------|
-| P10-01 | Mobile Money | Intégration Orange/Moov — uniquement si client confirme |
-| P10-02 | Carte scolaire PDF | GET /students/{id}/card |
-| P10-03 | Photo élève | Upload sécurisé, validation MIME, taille max |
-| P10-04 | Multi-établissement | school_id tenant sur toutes les tables |
-| P10-05 | Redis | Rate limit + cache si justifié |
+
+| ID     | Sujet                           |
+| ------ | ------------------------------- |
+| P10-01 | Mobile Money                    |
+| P10-02 | Carte scolaire PDF              |
+| P10-03 | Photo élève upload sécurisé     |
+| P10-04 | Multi-établissement `school_id` |
+| P10-05 | Redis rate limit                |
+
+
+Même schéma Git : `main` → `feat/P10-xx-…` → PR → merge.
 
 ---
 
 ## Index rapide des prompts
 
-| ID | Titre |
-|----|--------|
-| P0-03 | CI verte sur main |
-| P1-01 → P1-07 | Auth complet |
-| P2-01 → P2-05 | Élèves |
-| P3-01 → P3-05 | Notes |
-| P4-01 → P4-04 | Compta MVP |
-| P5-01 → P5-06 | Frontend |
-| P6-01 → P6-04 | DevSecOps+ |
-| P7-01 → P7-03 | AWS |
-| P8-01 → P8-03 | Supervision |
-| P9-01 → P9-03 | Pentest & doc |
-| P10-xx | Optionnels |
+
+| ID       | Titre       | Branche type      |
+| -------- | ----------- | ----------------- |
+| P0-03    | CI verte    | `fix/ci-green`    |
+| P1-01…07 | Auth        | `feat/P1-xx-…`    |
+| P2-01…05 | Élèves      | `feat/P2-xx-…`    |
+| P3-01…05 | Notes       | `feat/P3-xx-…`    |
+| P4-01…04 | Compta      | `feat/P4-xx-…`    |
+| P5-01…06 | Frontend    | `feat/P5-xx-…`    |
+| P6-01…04 | DevSecOps+  | `chore/P6-xx-…`   |
+| P7-01…03 | AWS         | `feat/P7-xx-…`    |
+| P8-01…03 | Supervision | `feat/P8-xx-…`    |
+| P9-01…03 | Pentest     | `docs/` ou `fix/` |
+
 
 ---
 
 ## Prochain prompt recommandé
 
-**P0-03** (si CI encore rouge) puis **P1-01**.
-
-Copiez le bloc « Prompt à envoyer » dans le chat Cursor.
+1. **Section 2** — checklist reprise si nouvelle session
+2. **P0-03** si CI pas verte, sinon **P1-01**
 
 ---
 
 ## Liens documentation
 
-- [workflow-dev.md](workflow-dev.md)
-- [devsecops-workflow.md](devsecops-workflow.md)
-- [github-branch-protection.md](github-branch-protection.md)
-- [demarrage.md](demarrage.md)
-- [architecture.md](architecture.md)
-- [supervision.md](supervision.md)
+- [pipeline-securite.md](pipeline-securite.md) — détail OWASP par outil  
+- [demarrage.md](demarrage.md) · [workflow-dev.md](workflow-dev.md)  
+- [github-branch-protection.md](github-branch-protection.md)  
+- [migrations.md](migrations.md) · [troubleshooting.md](troubleshooting.md)
 
 ---
 
-*Document vivant — ajoutez vos prompts utilisateur en fin de fichier.*
-
 ### Mes prompts additionnels
 
-<!-- Exemple :
-#### PX-01 — Titre
-**Prompt à envoyer** : ...
--->
