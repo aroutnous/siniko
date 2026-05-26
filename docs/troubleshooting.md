@@ -244,6 +244,21 @@ Vérifier l’onglet **Actions** sur GitHub pour le job réellement en échec, p
 
 ---
 
+### PR bloquée — « Expected — Waiting for status to be reported » (aucun run dans Actions)
+
+**Symptôme** : les 5 checks requis restent jaunes ; l’onglet **Actions** ne montre aucun run **CI DevSecOps** pour la branche de la PR (seulement Dependabot ou apps Cursor/Sonar).
+
+**Cause** : l’événement `pull_request` ne déclenche pas le workflow (historique workflow sur une ancienne PR, push via intégration, file d’attente GitHub, etc.). La protection de branche attend des statuts jamais envoyés.
+
+**Correction (dans l’ordre)** :
+
+1. Mettre à jour `.github/workflows/ci.yml` sur **`main`** (déclencheurs `push` sur `feat/**` / `fix/**` + `workflow_dispatch`) — souvent via **push direct sur `main`** ou merge admin si les PR ne déclenchent pas la CI.
+2. Sur la branche feature : `git commit --allow-empty -m "ci: trigger push" && git push` → la CI part sur l’événement **push**.
+3. Ou : **Actions** → **CI DevSecOps** → **Run workflow** → branche `feat/P1-01-models-clean`.
+4. Vérifier **Settings → Actions → General** : Actions activées ; pour les forks, approuver « Run workflows » si demandé.
+
+---
+
 ## 4. Ordre recommandé au premier lancement
 
 ```bash

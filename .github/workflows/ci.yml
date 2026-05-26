@@ -2,9 +2,11 @@ name: CI DevSecOps
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "feat/**", "fix/**"]
   pull_request:
     branches: [main, develop]
+  # Secours si pull_request ne se déclenche pas (statuts « Expected » sur la PR)
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
