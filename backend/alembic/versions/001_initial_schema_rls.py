@@ -66,6 +66,71 @@ PG_ENUMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("statut_salaire", ("en_attente", "paye")),
 )
 
+# Placeholder remplacé après validation whitelist (pas de f-string dynamique — Bandit B608)
+_TABLE_PLACEHOLDER = "__TABLE__"
+_TYPE_PLACEHOLDER = "__TYPE__"
+
+_ALTER_ENABLE_RLS = "ALTER TABLE __TABLE__ ENABLE ROW LEVEL SECURITY"
+_CREATE_TENANT_INDEX = (
+    "CREATE INDEX IF NOT EXISTS ix___TABLE___tenant_id_rls ON __TABLE__ (tenant_id)"
+)
+_RLS_POLICY = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = current_schema()
+          AND tablename = '__TABLE__'
+          AND policyname = 'tenant_isolation'
+    ) THEN
+        CREATE POLICY tenant_isolation ON __TABLE__
+        FOR ALL
+        USING (
+            tenant_id = current_setting('app.current_tenant', true)::uuid
+        )
+        WITH CHECK (
+            tenant_id = current_setting('app.current_tenant', true)::uuid
+        );
+    END IF;
+END $$;
+"""
+_DROP_POLICY = "DROP POLICY IF EXISTS tenant_isolation ON __TABLE__"
+_DISABLE_RLS = "ALTER TABLE __TABLE__ DISABLE ROW LEVEL SECURITY"
+_DROP_TABLE = "DROP TABLE IF EXISTS __TABLE__ CASCADE"
+_CREATE_ENUM = "CREATE TYPE __TYPE__ AS ENUM (__VALUES__)"
+_DROP_TYPE = "DROP TYPE IF EXISTS __TYPE__"
+
+_RLS_TABLES_SET = frozenset(RLS_TABLES)
+_PG_ENUM_NAMES = frozenset(name for name, _ in PG_ENUMS)
+_MODEL_TABLE_NAMES = frozenset(
+    table.name for table in Base.metadata.sorted_tables
+)
+
+
+def _assert_rls_table(table_name: str) -> None:
+    """Vérifie que le nom de table provient du tuple interne RLS_TABLES."""
+    if table_name not in _RLS_TABLES_SET:
+        raise ValueError(f"Table RLS non autorisee: {table_name!r}")
+
+
+def _sql_for_rls_table(template: str, table_name: str) -> str:
+    _assert_rls_table(table_name)
+    return template.replace(_TABLE_PLACEHOLDER, table_name)
+
+
+def _sql_for_model_table(template: str, table_name: str) -> str:
+    if table_name not in _MODEL_TABLE_NAMES:
+        raise ValueError(f"Table modele non autorisee: {table_name!r}")
+    return template.replace(_TABLE_PLACEHOLDER, table_name)
+
+
+def _sql_for_enum_type(template: str, enum_name: str, values_sql: str = "") -> str:
+    if enum_name not in _PG_ENUM_NAMES:
+        raise ValueError(f"Type ENUM non autorise: {enum_name!r}")
+    return (
+        template.replace(_TYPE_PLACEHOLDER, enum_name).replace("__VALUES__", values_sql)
+    )
+
 
 def _table_exists(connection, table_name: str) -> bool:
     return table_name in inspect(connection).get_table_names()
@@ -85,7 +150,9 @@ def _create_pg_enums(connection) -> None:
         if _enum_exists(connection, enum_name):
             continue
         values_sql = ", ".join(f"'{v}'" for v in values)
-        connection.execute(text(f"CREATE TYPE {enum_name} AS ENUM ({values_sql})"))
+        connection.execute(
+            text(_sql_for_enum_type(_CREATE_ENUM, enum_name, values_sql))
+        )
 
 
 def _create_tables(connection) -> None:
@@ -96,46 +163,13 @@ def _create_tables(connection) -> None:
 
 
 def _create_tenant_index(connection, table_name: str) -> None:
-    index_name = f"ix_{table_name}_tenant_id_rls"
-    connection.execute(
-        text(
-            f"CREATE INDEX IF NOT EXISTS {index_name} "
-            f"ON {table_name} (tenant_id)"
-        )
-    )
+    connection.execute(text(_sql_for_rls_table(_CREATE_TENANT_INDEX, table_name)))
 
 
 def _enable_rls(connection, table_name: str) -> None:
     """Active RLS et policy tenant_isolation (idempotent)."""
-    connection.execute(
-        text(f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY")
-    )
-    # nosec B608 — table_name est une constante interne,
-    # pas une entrée utilisateur. Risque d'injection nul.
-    connection.execute(
-        text(
-            f"""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_policies
-                    WHERE schemaname = current_schema()
-                      AND tablename = '{table_name}'
-                      AND policyname = 'tenant_isolation'
-                ) THEN
-                    CREATE POLICY tenant_isolation ON {table_name}
-                    FOR ALL
-                    USING (
-                        tenant_id = current_setting('app.current_tenant', true)::uuid
-                    )
-                    WITH CHECK (
-                        tenant_id = current_setting('app.current_tenant', true)::uuid
-                    );
-                END IF;
-            END $$;
-            """
-        )
-    )
+    connection.execute(text(_sql_for_rls_table(_ALTER_ENABLE_RLS, table_name)))
+    connection.execute(text(_sql_for_rls_table(_RLS_POLICY, table_name)))
 
 
 def upgrade() -> None:
@@ -155,12 +189,12 @@ def downgrade() -> None:
 
     for table_name in RLS_TABLES:
         if _table_exists(connection, table_name):
-            op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table_name}")
-            op.execute(f"ALTER TABLE {table_name} DISABLE ROW LEVEL SECURITY")
+            op.execute(_sql_for_rls_table(_DROP_POLICY, table_name))
+            op.execute(_sql_for_rls_table(_DISABLE_RLS, table_name))
 
     for table in reversed(Base.metadata.sorted_tables):
         if _table_exists(connection, table.name):
-            op.execute(f"DROP TABLE IF EXISTS {table.name} CASCADE")
+            op.execute(_sql_for_model_table(_DROP_TABLE, table.name))
 
     for enum_name, _ in reversed(PG_ENUMS):
-        op.execute(f"DROP TYPE IF EXISTS {enum_name}")
+        op.execute(_sql_for_enum_type(_DROP_TYPE, enum_name))
