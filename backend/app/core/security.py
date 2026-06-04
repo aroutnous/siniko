@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import DbSession
 from app.models.enums import StatutUtilisateur
-from app.models.utilisateur import Utilisateur
+from app.models.auth import Utilisateur
 from app.services.permissions import role_has_permission
 
 # cost=12 conforme aux règles projet (bcrypt)

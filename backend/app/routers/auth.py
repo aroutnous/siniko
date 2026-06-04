@@ -7,10 +7,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from app.core.config import settings
 from app.core.database import DbSession
 from app.core.security import create_access_token, hash_token, verify_password
+from app.models.auth import Session as UserSession, Utilisateur
 from app.models.enums import StatutTenant, StatutUtilisateur
-from app.models.session import Session as UserSession
 from app.models.tenant import Tenant
-from app.models.utilisateur import Utilisateur
 from app.schemas.auth import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])

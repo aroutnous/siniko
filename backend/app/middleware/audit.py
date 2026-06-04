@@ -8,7 +8,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.database import SessionLocal
-from app.models.audit_log import AuditLog
+from app.models.auth import AuditLog
 
 logger = logging.getLogger(__name__)
 
