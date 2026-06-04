@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+
+  # =====================
+  # BASE DE DONNÉES
+  # =====================
+  db:
+    image: postgres:16-alpine
+    container_name: siniko_db
+    environment:
+      POSTGRES_DB: siniko
+      POSTGRES_USER: siniko_user
+      POSTGRES_PASSWORD: siniko_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U siniko_user -d siniko"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # CACHE / SESSIONS
+  # =====================
+  redis:
+    image: redis:7-alpine
+    container_name: siniko_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================
+  # BACKEND (à activer en Phase 1)
+  # =====================
+  # backend:
+  #   build: ./backend
+  #   container_name: siniko_backend
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DATABASE_URL: postgresql://siniko_user:siniko_dev_password@db:5432/siniko
+  #     REDIS_URL: redis://redis:6379
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # =====================
+  # FRONTEND (à activer en Phase 1)
+  # =====================
+  # frontend:
+  #   build: ./frontend
+  #   container_name: siniko_frontend
+  #   ports:
+  #     - "5173:5173"
+  #   depends_on:
+  #     - backend
+
+  # =====================
+  # DB UI (développement uniquement)
+  # =====================
+  adminer:
+    image: adminer:latest
+    container_name: siniko_adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
