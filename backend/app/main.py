@@ -7,12 +7,15 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.middleware.audit import AuditMiddleware
 from app.middleware.tenant import TenantMiddleware
-from app.routers import auth
+from app.routers.auth import limiter, router as auth_router
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -28,6 +31,12 @@ app = FastAPI(
     openapi_url=None if settings.is_production else "/openapi.json",
 )
 
+# Rate limiting Redis (slowapi / limits)
+limiter.storage_uri = settings.redis_url
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -38,7 +47,7 @@ app.add_middleware(
 app.add_middleware(AuditMiddleware)
 app.add_middleware(TenantMiddleware)
 
-app.include_router(auth.router)
+app.include_router(auth_router)
 
 
 @app.get("/health", tags=["health"])

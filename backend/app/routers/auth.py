@@ -1,18 +1,36 @@
-"""Routes d'authentification M1."""
+"""Routes d'authentification M1 — login multi-tenant."""
 
-from datetime import UTC, datetime, timedelta
+from fastapi import APIRouter, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from fastapi import APIRouter, HTTPException, Request, status
-
-from app.core.config import settings
 from app.core.database import DbSession
-from app.core.security import create_access_token, hash_token, verify_password
-from app.models.auth import Session as UserSession, Utilisateur
-from app.models.enums import StatutTenant, StatutUtilisateur
-from app.models.tenant import Tenant
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.core.security import CurrentUser, _extract_bearer_token, bearer_scheme
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    LogoutResponse,
+    RefreshResponse,
+    ResetPasswordConfirm,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    UserProfile,
+)
+from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Clé rate limit par IP réelle (supporte X-Forwarded-For derrière proxy)."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 
 
 def _client_ip(request: Request) -> str | None:
@@ -24,70 +42,94 @@ def _client_ip(request: Request) -> str | None:
     return None
 
 
-@router.post("/login", response_model=TokenResponse)
+def _get_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    return _extract_bearer_token(credentials)
+
+
+@router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/10minutes")
 def login(
-    body: LoginRequest,
     request: Request,
+    body: LoginRequest,
     db: DbSession,
-) -> TokenResponse:
+) -> LoginResponse:
     """
-    Authentification par email, mot de passe et slug tenant.
+    Authentification multi-tenant : email, mot de passe, slug établissement.
 
-    Crée un JWT (15 min) et une session avec hash du token.
+    Rate limit : 5 tentatives / 10 minutes par IP (Redis via slowapi).
     """
-    tenant = (
-        db.query(Tenant)
-        .filter(Tenant.slug == body.tenant_slug, Tenant.statut == StatutTenant.ACTIF)
-        .first()
-    )
-    if tenant is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Identifiants invalides",
-        )
-
-    user = (
-        db.query(Utilisateur)
-        .filter(
-            Utilisateur.tenant_id == tenant.id,
-            Utilisateur.email == body.email.lower(),
-            Utilisateur.statut == StatutUtilisateur.ACTIF,
-        )
-        .first()
-    )
-    if user is None or not verify_password(body.password, user.mot_de_passe_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Identifiants invalides",
-        )
-
-    expires_delta = timedelta(minutes=settings.jwt_expire_minutes)
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "tenant_id": str(tenant.id),
-            "role": user.role.value,
-            "email": user.email,
-        },
-        expires_delta=expires_delta,
-    )
-
-    expire_at = datetime.now(UTC) + expires_delta
-    session = UserSession(
-        utilisateur_id=user.id,
-        token_hash=hash_token(access_token),
+    service = AuthService(db)
+    return service.login(
+        email=body.email,
+        password=body.password,
+        tenant_slug=body.tenant_slug,
         ip_address=_client_ip(request),
-        expire_at=expire_at,
     )
-    user.derniere_connexion = datetime.now(UTC)
-    db.add(session)
-    db.commit()
 
-    # Contexte pour middlewares sur la même requête (si besoin en aval)
-    request.state.tenant_id = tenant.id
-    request.state.user_id = str(user.id)
 
-    return TokenResponse(
-        access_token=access_token,
-        expires_in=int(expires_delta.total_seconds()),
+@router.post("/logout", response_model=LogoutResponse)
+def logout(
+    request: Request,
+    current_user: CurrentUser,
+    db: DbSession,
+    token: str = Depends(_get_token),
+) -> LogoutResponse:
+    """Invalide la session courante (suppression du hash en base)."""
+    AuthService(db).logout(token, current_user, _client_ip(request))
+    return LogoutResponse()
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+def refresh_token(
+    request: Request,
+    current_user: CurrentUser,
+    db: DbSession,
+    token: str = Depends(_get_token),
+) -> RefreshResponse:
+    """Renouvelle le JWT et met à jour la session."""
+    result = AuthService(db).refresh(token, current_user, _client_ip(request))
+    return RefreshResponse(**result.model_dump())
+
+
+@router.post(
+    "/reset-password/request",
+    response_model=ResetPasswordResponse,
+    status_code=200,
+)
+def reset_password_request(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: DbSession,
+) -> ResetPasswordResponse:
+    """Demande de reset — réponse identique que l'email existe ou non."""
+    return AuthService(db).request_reset(
+        email=body.email,
+        tenant_slug=body.tenant_slug,
+        ip_address=_client_ip(request),
     )
+
+
+@router.post("/reset-password/confirm", status_code=204)
+def reset_password_confirm(
+    request: Request,
+    body: ResetPasswordConfirm,
+    db: DbSession,
+) -> None:
+    """Confirme le nouveau mot de passe et révoque toutes les sessions."""
+    AuthService(db).confirm_reset(
+        token=body.token,
+        new_password=body.new_password,
+        tenant_slug=body.tenant_slug,
+        ip_address=_client_ip(request),
+    )
+
+
+@router.get("/me", response_model=UserProfile)
+def get_me(
+    current_user: CurrentUser,
+    db: DbSession,
+) -> UserProfile:
+    """Profil de l'utilisateur authentifié."""
+    return AuthService(db).get_current_user_profile(current_user)

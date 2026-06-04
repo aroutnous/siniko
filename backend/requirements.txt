@@ -15,10 +15,14 @@ bcrypt>=4.0.1,<5.0
 
 # Cache & configuration
 redis>=5.2.0,<6.0
+slowapi>=0.1.9,<0.2
+limits[redis]>=3.13.0,<4.0
 pydantic-settings>=2.6.0,<3.0
 python-dotenv>=1.0.1
 email-validator>=2.2.0,<3.0
 
 # Tests
 pytest>=8.3.0,<9.0
+pytest-asyncio>=0.24.0,<1.0
 httpx>=0.28.0,<1.0
+fakeredis>=2.26.0,<3.0

@@ -61,6 +61,16 @@ class AuditMiddleware(BaseHTTPMiddleware):
             except ValueError:
                 utilisateur_id = None
 
+        # Sans tenant_id (ex. login public échoué) : log applicatif uniquement
+        if tenant_id is None:
+            logger.info(
+                "audit sans tenant action=%s resultat=%s ip=%s",
+                action,
+                resultat,
+                _client_ip(request),
+            )
+            return response
+
         db = SessionLocal()
         try:
             log_entry = AuditLog(

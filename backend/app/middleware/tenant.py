@@ -14,7 +14,12 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Chemins publics sans contexte tenant (pas de JWT requis)
-PUBLIC_PATHS: frozenset[str] = frozenset({"/health", "/auth/login"})
+PUBLIC_PATHS: frozenset[str] = frozenset({
+    "/health",
+    "/auth/login",
+    "/auth/reset-password/request",
+    "/auth/reset-password/confirm",
+})
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

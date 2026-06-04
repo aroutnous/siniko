@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import DbSession
-from app.models.enums import StatutUtilisateur
+from app.models.auth import Session as UserSession
 from app.models.auth import Utilisateur
+from app.models.enums import StatutUtilisateur
 from app.services.permissions import role_has_permission
 
 # cost=12 conforme aux règles projet (bcrypt)
@@ -138,6 +139,23 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Utilisateur introuvable ou inactif",
         )
+
+    # Session active obligatoire (révoquée au logout / reset password)
+    session = (
+        db.query(UserSession)
+        .filter(
+            UserSession.utilisateur_id == user_id,
+            UserSession.token_hash == hash_token(token),
+            UserSession.expire_at > datetime.now(UTC),
+        )
+        .first()
+    )
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session invalide ou expirée",
+        )
+
     return user
 
 

@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models.base import BaseModel, TenantScopedModel
+from app.models.base import BaseModel
 from app.models.enums import (
     RoleUtilisateur,
     StatutUtilisateur,
@@ -73,9 +73,17 @@ class Session(BaseModel):
     utilisateur: Mapped["Utilisateur"] = relationship(back_populates="sessions")
 
 
-class AuditLog(TenantScopedModel):
+class AuditLog(BaseModel):
+    """Journal d'audit — tenant_id optionnel (échecs login sans contexte tenant)."""
+
     __tablename__ = "audit_logs"
 
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     utilisateur_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("utilisateurs.id", ondelete="SET NULL"),

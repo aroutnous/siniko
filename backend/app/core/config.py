@@ -1,17 +1,19 @@
 """Configuration applicative via variables d'environnement (Pydantic Settings)."""
 
+import json
+import os
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Paramètres chargés depuis .env — aucun secret en dur dans le code."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=None if os.getenv("SINIKO_TESTING") == "1" else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -27,7 +29,7 @@ class Settings(BaseSettings):
         alias="ENVIRONMENT",
     )
     debug: bool = Field(default=False, alias="DEBUG")
-    allowed_origins: list[str] = Field(
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"],
         alias="ALLOWED_ORIGINS",
     )
@@ -35,8 +37,15 @@ class Settings(BaseSettings):
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def parse_allowed_origins(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, list):
+            return value
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            stripped = value.strip()
+            if stripped.startswith("["):
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    return [str(origin).strip() for origin in parsed if str(origin).strip()]
+            return [origin.strip() for origin in stripped.split(",") if origin.strip()]
         return value
 
     @property
