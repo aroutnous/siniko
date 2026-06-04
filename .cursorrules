@@ -1,0 +1,97 @@
+# ============================================================
+# SINIKO — Règles Cursor
+# Plateforme SaaS de gestion scolaire multi-tenant
+# Stack : FastAPI + React/Vite/TS + PostgreSQL + Docker
+# Approche : DevSecOps Shift Left
+# ============================================================
+
+## Contexte du projet
+Tu développes SINIKO, une application SaaS multi-tenant de gestion scolaire
+pour les établissements maliens (préscolaire et fondamental).
+Le projet suit une approche DevSecOps Shift Left : la sécurité est intégrée
+à chaque ligne de code produite.
+
+## Stack technique
+- Backend : FastAPI (Python 3.12) + SQLAlchemy + Alembic
+- Frontend : React + Vite + TypeScript + TailwindCSS + shadcn/ui
+- Base de données : PostgreSQL avec Row Level Security (RLS)
+- Cache : Redis
+- Conteneurs : Docker + Docker Compose
+- CI/CD : GitHub Actions
+
+## Architecture multi-tenant
+- Chaque table métier contient un champ tenant_id (UUID)
+- L'isolation est garantie par PostgreSQL RLS
+- Chaque requête SQL doit filtrer par tenant_id
+- Le tenant_id est extrait du JWT à chaque requête
+- JAMAIS de requête sans filtre tenant_id sur les tables métier
+
+## Règles de sécurité OBLIGATOIRES
+1. Ne jamais écrire de requêtes SQL brutes — toujours utiliser SQLAlchemy ORM
+2. Ne jamais stocker de secrets dans le code — utiliser les variables d'environnement
+3. Toujours valider les entrées avec Pydantic
+4. Toujours vérifier les permissions avant toute action (decorator @require_permission)
+5. Toujours inclure tenant_id dans les filtres de requête
+6. Les mots de passe sont hashés avec bcrypt (cost=12) — jamais en clair
+7. Les tokens JWT expirent après 15 minutes
+8. Toujours logger les actions sensibles dans audit_logs
+9. Ne jamais exposer les stack traces en production
+10. Les paiements sont immutables — jamais de UPDATE/DELETE sur la table paiements
+
+## Structure des fichiers backend
+backend/
+├── app/
+│   ├── main.py
+│   ├── core/
+│   │   ├── config.py        # Settings Pydantic
+│   │   ├── security.py      # JWT, bcrypt, permissions
+│   │   └── database.py      # Engine, session, RLS
+│   ├── models/              # SQLAlchemy models
+│   ├── schemas/             # Pydantic schemas
+│   ├── routers/             # FastAPI routers
+│   ├── services/            # Business logic
+│   └── middleware/          # Auth, logging, tenant
+├── tests/
+├── alembic/
+└── requirements.txt
+
+## Structure des fichiers frontend
+frontend/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── services/            # API calls
+│   ├── hooks/
+│   ├── stores/              # Zustand
+│   └── types/
+└── vite.config.ts
+
+## Conventions de code
+- Python : snake_case, type hints obligatoires, docstrings sur les fonctions publiques
+- TypeScript : camelCase, interfaces préférées aux types, pas de any
+- Commits : format conventionnel (feat/fix/sec/chore/docs)
+- Chaque fonction fait une seule chose
+- Pas de code commenté inutile
+
+## Modules développés (V1)
+- M1 : Authentification & Accès (JWT, bcrypt, sessions, RLS, audit)
+- M2 : Gestion établissement (cycles, niveaux, classes, matières, années)
+- M3 : Gestion des élèves (inscription, dossiers, absences, documents)
+- M4 : Gestion pédagogique (notes, bulletins, moyennes, rangs)
+- M5 : Comptabilité & Finance (paiements, frais, salaires, Mobile Money)
+- M6 : Reporting & Documents (tableaux de bord, exports, impressions)
+
+## Rôles utilisateurs
+- platform_owner : administrateur de la plateforme globale
+- promoteur : propriétaire d'un établissement (tenant)
+- directeur : gestion pédagogique et administrative
+- secretaire : guichet, inscriptions, paiements
+- comptable : finance, rapports financiers
+
+## Ce que tu NE dois PAS faire
+- Générer du SQL brut (f-strings avec variables dans les requêtes)
+- Stocker JWT_SECRET ou DATABASE_URL en dur dans le code
+- Créer des endpoints sans vérification de permission
+- Oublier le filtre tenant_id dans les requêtes
+- Utiliser print() pour le logging — utiliser le logger Python
+- Créer des modèles sans tenant_id
