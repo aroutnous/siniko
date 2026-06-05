@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.middleware.audit import AuditMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.routers.auth import limiter, router as auth_router
+from app.routers.etablissement import router as etablissement_router
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -48,6 +49,7 @@ app.add_middleware(AuditMiddleware)
 app.add_middleware(TenantMiddleware)
 
 app.include_router(auth_router)
+app.include_router(etablissement_router)
 
 
 @app.get("/health", tags=["health"])

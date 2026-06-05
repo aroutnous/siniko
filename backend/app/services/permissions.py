@@ -20,6 +20,7 @@ ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
     RoleUtilisateur.DIRECTEUR: frozenset(
         {
             "establishment.read",
+            "establishment.manage",
             "students.read",
             "students.update",
             "pedagogy.manage",
@@ -28,6 +29,7 @@ ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
     ),
     RoleUtilisateur.SECRETAIRE: frozenset(
         {
+            "establishment.read",
             "students.manage",
             "finance.payments",
             "reports.read",
@@ -35,6 +37,7 @@ ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
     ),
     RoleUtilisateur.COMPTABLE: frozenset(
         {
+            "establishment.read",
             "finance.manage",
             "finance.read",
             "reports.read",

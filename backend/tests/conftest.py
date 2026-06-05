@@ -1,6 +1,7 @@
 """Fixtures pytest — base de données, client HTTP, rate limit mémoire."""
 
 import os
+import uuid
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
@@ -36,7 +37,7 @@ from app.routers.auth import limiter  # noqa: E402
 
 TEST_PASSWORD = "Password123!"
 TEST_SLUG = "ecole-test"
-TEST_EMAIL = "directeur@ecole-test.ml"
+TEST_EMAIL = "directeur@ecole-test.ml"  # défaut ; seed_auth_data utilise un email unique
 
 _ip_counter = 0
 
@@ -70,23 +71,24 @@ def seed_auth_data(db_session: Session) -> tuple[Tenant, Utilisateur]:
     """Tenant actif + utilisateur directeur pour les tests auth."""
     tenant = Tenant(
         nom="École Test",
-        slug=TEST_SLUG,
+        slug=f"ecole-test-{uuid.uuid4().hex[:8]}",
         statut=StatutTenant.ACTIF,
     )
     db_session.add(tenant)
     db_session.flush()
 
+    email = f"directeur-{uuid.uuid4().hex[:8]}@ecole-test.ml"
     user = Utilisateur(
         tenant_id=tenant.id,
         nom="Diallo",
         prenom="Amadou",
-        email=TEST_EMAIL,
+        email=email,
         mot_de_passe_hash=hash_password(TEST_PASSWORD),
         role=RoleUtilisateur.DIRECTEUR,
         statut=StatutUtilisateur.ACTIF,
     )
     db_session.add(user)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(tenant)
     db_session.refresh(user)
     return tenant, user
@@ -96,11 +98,11 @@ def seed_auth_data(db_session: Session) -> tuple[Tenant, Utilisateur]:
 def suspended_tenant(db_session: Session) -> Tenant:
     tenant = Tenant(
         nom="École Suspendue",
-        slug="ecole-suspendue",
+        slug=f"ecole-suspendue-{uuid.uuid4().hex[:8]}",
         statut=StatutTenant.SUSPENDU,
     )
     db_session.add(tenant)
-    db_session.commit()
+    db_session.flush()
     db_session.refresh(tenant)
     return tenant
 
@@ -137,3 +139,25 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def auth_headers(
+    async_client: AsyncClient,
+    seed_auth_data: tuple[Tenant, Utilisateur],
+    unique_ip_headers: dict[str, str],
+) -> dict[str, str]:
+    """JWT + session valide pour les tests authentifiés."""
+    tenant, user = seed_auth_data
+    response = await async_client.post(
+        "/auth/login",
+        json={
+            "email": user.email,
+            "password": TEST_PASSWORD,
+            "tenant_slug": tenant.slug,
+        },
+        headers=unique_ip_headers,
+    )
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
