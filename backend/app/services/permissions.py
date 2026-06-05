@@ -35,7 +35,7 @@ ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
             "pedagogy.generate",
             "pedagogy.read",
             "finance.payments",
-            "reports.read",
+            "reports.impressions",
         }
     ),
     RoleUtilisateur.COMPTABLE: frozenset(

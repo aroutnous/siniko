@@ -112,6 +112,7 @@ async def _create_finance_context(
         headers=setup_headers,
     )
     assert inscrit.status_code == 201
+    assert frais.status_code == 201
     return {
         "niveau_id": niveau.json()["id"],
         "annee_id": annee.json()["id"],
