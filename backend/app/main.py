@@ -18,6 +18,7 @@ from app.middleware.tenant import TenantMiddleware
 from app.routers.auth import limiter, router as auth_router
 from app.routers.eleve import router as eleve_router
 from app.routers.etablissement import router as etablissement_router
+from app.routers.pedagogie import router as pedagogie_router
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -52,6 +53,7 @@ app.add_middleware(TenantMiddleware)
 app.include_router(auth_router)
 app.include_router(etablissement_router)
 app.include_router(eleve_router)
+app.include_router(pedagogie_router)
 
 
 @app.get("/health", tags=["health"])

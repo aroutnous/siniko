@@ -31,6 +31,9 @@ ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
         {
             "establishment.read",
             "students.manage",
+            "pedagogy.notes",
+            "pedagogy.generate",
+            "pedagogy.read",
             "finance.payments",
             "reports.read",
         }
