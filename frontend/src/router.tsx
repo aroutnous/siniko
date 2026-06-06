@@ -9,7 +9,15 @@ import { AbsencesPage } from "@/pages/eleves/AbsencesPage";
 import { EleveDossierPage } from "@/pages/eleves/EleveDossierPage";
 import { ElevesListPage } from "@/pages/eleves/ElevesListPage";
 import { InscriptionPage } from "@/pages/eleves/InscriptionPage";
+import { FinanceLayout } from "@/components/finance/FinanceLayout";
+import { CaissePage } from "@/pages/finance/CaissePage";
+import { DepensesPage } from "@/pages/finance/DepensesPage";
+import { FraisScolairesPage } from "@/pages/finance/FraisScolairesPage";
+import { ImpayesPage } from "@/pages/finance/ImpayesPage";
 import { PaiementsPage } from "@/pages/finance/PaiementsPage";
+import { SalairesPage } from "@/pages/finance/SalairesPage";
+import { TableauBordFinancierPage } from "@/pages/finance/TableauBordFinancierPage";
+import { TransactionsPage } from "@/pages/finance/TransactionsPage";
 import { AuditLogsPage } from "@/pages/platform/AuditLogsPage";
 import { PlansPage } from "@/pages/platform/PlansPage";
 import { PlatformDashboardPage } from "@/pages/platform/PlatformDashboardPage";
@@ -76,6 +84,19 @@ function PedagogieRoute(): React.JSX.Element {
   return <Outlet />;
 }
 
+function FinanceRoute(): React.JSX.Element {
+  const role = useAuthStore((s) => s.user?.role);
+  if (
+    role !== "promoteur" &&
+    role !== "comptable" &&
+    role !== "secretaire" &&
+    role !== "directeur"
+  ) {
+    return <Navigate to={ROUTES.dashboard} replace />;
+  }
+  return <Outlet />;
+}
+
 export const router = createBrowserRouter([
   {
     element: <PublicRoute />,
@@ -92,7 +113,27 @@ export const router = createBrowserRouter([
           { path: ROUTES.elevesAbsences, element: <AbsencesPage /> },
           { path: ROUTES.eleveDossier, element: <EleveDossierPage /> },
           { path: ROUTES.elevesInscrire, element: <InscriptionPage /> },
-          { path: ROUTES.financePaiements, element: <PaiementsPage /> },
+          {
+            element: <FinanceRoute />,
+            children: [
+              {
+                element: <FinanceLayout />,
+                children: [
+                  { path: ROUTES.financePaiements, element: <PaiementsPage /> },
+                  { path: ROUTES.financeFrais, element: <FraisScolairesPage /> },
+                  { path: ROUTES.financeImpayes, element: <ImpayesPage /> },
+                  { path: ROUTES.financeTransactions, element: <TransactionsPage /> },
+                  { path: ROUTES.financeDepenses, element: <DepensesPage /> },
+                  { path: ROUTES.financeSalaires, element: <SalairesPage /> },
+                  { path: ROUTES.financeCaisse, element: <CaissePage /> },
+                  {
+                    path: ROUTES.financeTableauBord,
+                    element: <TableauBordFinancierPage />,
+                  },
+                ],
+              },
+            ],
+          },
           {
             element: <PlatformRoute />,
             children: [

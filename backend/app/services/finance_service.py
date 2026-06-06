@@ -350,6 +350,13 @@ class FinanceService:
         self._audit("finance.salaire.pay", "salaires", salaire.id)
         return SalaireResponse.model_validate(salaire)
 
+    def list_salaires(self, mois: date | None = None) -> list[SalaireResponse]:
+        q = self.db.query(Salaire).filter(Salaire.tenant_id == self.tenant_id)
+        if mois is not None:
+            q = q.filter(Salaire.mois == mois)
+        rows = q.order_by(Salaire.mois.desc(), Salaire.created_at.desc()).all()
+        return [SalaireResponse.model_validate(row) for row in rows]
+
     def get_caisse_jour(
         self,
         target_date: date,

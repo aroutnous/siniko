@@ -58,9 +58,9 @@ const TENANT_NAV_ITEMS: NavItem[] = [
   },
   {
     to: ROUTES.financePaiements,
-    label: "Paiements",
+    label: "Finance",
     icon: Wallet,
-    roles: ["promoteur", "secretaire", "comptable"],
+    roles: ["promoteur", "directeur", "secretaire", "comptable"],
   },
 ];
 

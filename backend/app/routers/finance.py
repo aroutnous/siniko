@@ -214,6 +214,16 @@ def list_depenses(
     return _service(db, user, request).list_depenses(date_debut, date_fin)
 
 
+@router.get("/salaires", response_model=list[SalaireResponse])
+def list_salaires(
+    request: Request,
+    db: DbSession,
+    user: FinanceReader,
+    mois: date | None = Query(default=None),
+) -> list[SalaireResponse]:
+    return _service(db, user, request).list_salaires(mois)
+
+
 @router.post(
     "/salaires",
     response_model=SalaireResponse,

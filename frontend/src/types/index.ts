@@ -262,6 +262,8 @@ export interface ResultatsClasse {
 }
 
 export type ModePaiement = "especes" | "mobile_money" | "virement" | "cheque";
+export type StatutPaiement = "en_attente" | "valide" | "annule";
+export type StatutSalaire = "en_attente" | "paye";
 
 export interface Paiement {
   id: string;
@@ -274,17 +276,84 @@ export interface Paiement {
   reference_transaction: string | null;
   encaisse_par: string | null;
   date_paiement: string;
-  statut: string;
+  statut: StatutPaiement;
   created_at: string;
   updated_at: string | null;
 }
 
 export interface FraisScolaire {
   id: string;
+  tenant_id?: string;
   libelle: string;
   montant: number;
   niveau_id: string;
   annee_scolaire_id: string;
+  est_obligatoire: boolean;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
+export interface Depense {
+  id: string;
+  tenant_id: string;
+  categorie: string;
+  libelle: string;
+  montant: number;
+  date_depense: string;
+  saisi_par: string | null;
+  justificatif_url: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface Salaire {
+  id: string;
+  tenant_id: string;
+  employe_id: string;
+  mois: string;
+  montant_brut: number;
+  montant_net: number;
+  statut: StatutSalaire;
+  date_paiement: string | null;
+  valide_par: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface Caisse {
+  id: string;
+  tenant_id: string;
+  date: string;
+  solde_ouverture: number;
+  total_entrees: number;
+  total_sorties: number;
+  solde_cloture: number;
+  cloture_par: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CaisseJour {
+  caisse: Caisse;
+  solde_actuel: number;
+}
+
+export interface Impaye {
+  eleve_id: string;
+  matricule: string;
+  nom: string;
+  prenom: string;
+  total_du: number;
+  total_paye: number;
+  montant_restant: number;
+}
+
+export interface SituationFinanciere {
+  annee_scolaire_id: string;
+  total_recettes: number;
+  total_depenses: number;
+  total_salaires: number;
+  solde: number;
 }
 
 export interface TableauBordResponse {
