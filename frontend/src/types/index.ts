@@ -38,6 +38,40 @@ export interface LoginResponse {
   tenant_slug: string;
 }
 
+export interface UtilisateurListItem {
+  id: string;
+  tenant_id: string;
+  email: string;
+  nom: string;
+  prenom: string;
+  role: RoleUtilisateur;
+  statut: StatutUtilisateur;
+}
+
+export interface UtilisateurCreatePayload {
+  email: string;
+  nom: string;
+  prenom: string;
+  role: "directeur" | "secretaire" | "comptable";
+  mot_de_passe?: string;
+}
+
+export interface UtilisateurCreateResponse {
+  id: string;
+  tenant_id: string;
+  email: string;
+  nom: string;
+  prenom: string;
+  role: RoleUtilisateur;
+  mot_de_passe_temporaire: string | null;
+}
+
+export interface ChangePasswordPayload {
+  ancien_mot_de_passe: string;
+  nouveau_mot_de_passe: string;
+  confirmation: string;
+}
+
 export type StatutEleve = "actif" | "transfere" | "exclu";
 export type StatutInscription = "inscrit" | "transfere" | "abandonne";
 export type TypeAbsence = "absence" | "retard";

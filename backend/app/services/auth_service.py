@@ -1,6 +1,8 @@
 """Logique métier authentification multi-tenant (M1)."""
 
 import logging
+import secrets
+import string
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -17,9 +19,17 @@ from app.core.security import (
     verify_password,
 )
 from app.models.auth import ResetToken, Session as UserSession, Utilisateur
-from app.models.enums import StatutTenant, StatutUtilisateur
+from app.models.enums import RoleUtilisateur, StatutTenant, StatutUtilisateur
 from app.models.tenant import Tenant
-from app.schemas.auth import LoginResponse, ResetPasswordResponse, UserProfile
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginResponse,
+    ResetPasswordResponse,
+    UtilisateurCreate,
+    UtilisateurCreateResponse,
+    UtilisateurListItem,
+    UserProfile,
+)
 from app.services.audit_service import log_audit
 
 logger = logging.getLogger(__name__)
@@ -382,6 +392,185 @@ class AuthService:
             action="auth.reset_password.confirm",
             resultat="success",
             tenant_id=tenant.id,
+            utilisateur_id=user.id,
+            ip_address=ip_address,
+            table_cible="utilisateurs",
+            enregistrement_id=user.id,
+        )
+
+    @staticmethod
+    def _generer_mot_de_passe_temporaire() -> str:
+        alphabet = string.ascii_letters + string.digits + "!@#$%"
+        return "".join(secrets.choice(alphabet) for _ in range(12))
+
+    def list_tenant_users(self, actor: Utilisateur) -> list[UtilisateurListItem]:
+        """Liste les utilisateurs du tenant courant."""
+        set_tenant_context(self.db, actor.tenant_id)
+        users = (
+            self.db.query(Utilisateur)
+            .filter(Utilisateur.tenant_id == actor.tenant_id)
+            .order_by(Utilisateur.nom, Utilisateur.prenom)
+            .all()
+        )
+        return [UtilisateurListItem.model_validate(u) for u in users]
+
+    def create_tenant_user(
+        self,
+        actor: Utilisateur,
+        data: UtilisateurCreate,
+        ip_address: str | None,
+    ) -> UtilisateurCreateResponse:
+        """Crée un utilisateur dans le tenant du promoteur."""
+        set_tenant_context(self.db, actor.tenant_id)
+        email = str(data.email).lower()
+
+        existing = (
+            self.db.query(Utilisateur)
+            .filter(
+                Utilisateur.tenant_id == actor.tenant_id,
+                Utilisateur.email == email,
+            )
+            .first()
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email déjà utilisé pour cet établissement",
+            )
+
+        mot_de_passe = data.mot_de_passe or self._generer_mot_de_passe_temporaire()
+        utilisateur = Utilisateur(
+            tenant_id=actor.tenant_id,
+            nom=data.nom,
+            prenom=data.prenom,
+            email=email,
+            mot_de_passe_hash=hash_password(mot_de_passe),
+            role=data.role,
+            statut=StatutUtilisateur.ACTIF,
+        )
+        self.db.add(utilisateur)
+        self.db.commit()
+        self.db.refresh(utilisateur)
+
+        log_audit(
+            self.db,
+            action="auth.user.create",
+            resultat="success",
+            tenant_id=actor.tenant_id,
+            utilisateur_id=actor.id,
+            ip_address=ip_address,
+            table_cible="utilisateurs",
+            enregistrement_id=utilisateur.id,
+            details={"email": email, "role": data.role.value},
+        )
+
+        return UtilisateurCreateResponse(
+            id=utilisateur.id,
+            tenant_id=utilisateur.tenant_id,
+            email=utilisateur.email,
+            nom=utilisateur.nom,
+            prenom=utilisateur.prenom,
+            role=utilisateur.role,
+            mot_de_passe_temporaire=None if data.mot_de_passe else mot_de_passe,
+        )
+
+    def update_user_statut(
+        self,
+        actor: Utilisateur,
+        user_id: uuid.UUID,
+        statut: StatutUtilisateur,
+        ip_address: str | None,
+    ) -> UtilisateurListItem:
+        """Active ou désactive un utilisateur du tenant."""
+        if actor.id == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Vous ne pouvez pas modifier votre propre statut",
+            )
+
+        set_tenant_context(self.db, actor.tenant_id)
+        utilisateur = (
+            self.db.query(Utilisateur)
+            .filter(
+                Utilisateur.id == user_id,
+                Utilisateur.tenant_id == actor.tenant_id,
+            )
+            .first()
+        )
+        if utilisateur is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Utilisateur introuvable",
+            )
+
+        if utilisateur.role == RoleUtilisateur.PROMOTEUR:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Le statut du promoteur ne peut pas être modifié",
+            )
+
+        ancien_statut = utilisateur.statut
+        utilisateur.statut = statut
+
+        if statut == StatutUtilisateur.INACTIF:
+            self.db.query(UserSession).filter(
+                UserSession.utilisateur_id == utilisateur.id
+            ).delete()
+
+        self.db.commit()
+        self.db.refresh(utilisateur)
+
+        log_audit(
+            self.db,
+            action="auth.user.statut",
+            resultat="success",
+            tenant_id=actor.tenant_id,
+            utilisateur_id=actor.id,
+            ip_address=ip_address,
+            table_cible="utilisateurs",
+            enregistrement_id=utilisateur.id,
+            anciennes_valeurs={"statut": ancien_statut.value},
+            nouvelles_valeurs={"statut": statut.value},
+        )
+
+        return UtilisateurListItem.model_validate(utilisateur)
+
+    def change_password(
+        self,
+        user: Utilisateur,
+        body: ChangePasswordRequest,
+        current_token: str,
+        ip_address: str | None,
+    ) -> None:
+        """Change le mot de passe de l'utilisateur connecté."""
+        if not verify_password(body.ancien_mot_de_passe, user.mot_de_passe_hash):
+            log_audit(
+                self.db,
+                action="auth.change_password",
+                resultat="failure",
+                tenant_id=user.tenant_id,
+                utilisateur_id=user.id,
+                ip_address=ip_address,
+                details={"reason": "invalid_current_password"},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Mot de passe actuel incorrect",
+            )
+
+        user.mot_de_passe_hash = hash_password(body.nouveau_mot_de_passe)
+        token_digest = hash_token(current_token)
+        self.db.query(UserSession).filter(
+            UserSession.utilisateur_id == user.id,
+            UserSession.token_hash != token_digest,
+        ).delete()
+        self.db.commit()
+
+        log_audit(
+            self.db,
+            action="auth.change_password",
+            resultat="success",
+            tenant_id=user.tenant_id,
             utilisateur_id=user.id,
             ip_address=ip_address,
             table_cible="utilisateurs",

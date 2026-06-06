@@ -41,6 +41,8 @@ import { ExportsPage } from "@/pages/reporting/ExportsPage";
 import { ImpressionsPage } from "@/pages/reporting/ImpressionsPage";
 import { StatistiquesPage } from "@/pages/reporting/StatistiquesPage";
 import { TableauBordPage } from "@/pages/reporting/TableauBordPage";
+import { ProfilPage } from "@/pages/utilisateurs/ProfilPage";
+import { UtilisateursListPage } from "@/pages/utilisateurs/UtilisateursListPage";
 import { useAuthStore } from "@/stores/authStore";
 
 function PrivateRoute(): React.JSX.Element {
@@ -115,6 +117,14 @@ function ReportingRoute(): React.JSX.Element {
   return <Outlet />;
 }
 
+function UtilisateursRoute(): React.JSX.Element {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role !== "promoteur") {
+    return <Navigate to={ROUTES.dashboard} replace />;
+  }
+  return <Outlet />;
+}
+
 export const router = createBrowserRouter([
   {
     element: <PublicRoute />,
@@ -127,6 +137,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: ROUTES.dashboard, element: <DashboardPage /> },
+          { path: ROUTES.profil, element: <ProfilPage /> },
           { path: ROUTES.eleves, element: <ElevesListPage /> },
           { path: ROUTES.elevesAbsences, element: <AbsencesPage /> },
           { path: ROUTES.eleveDossier, element: <EleveDossierPage /> },
@@ -195,6 +206,10 @@ export const router = createBrowserRouter([
                 ],
               },
             ],
+          },
+          {
+            element: <UtilisateursRoute />,
+            children: [{ path: ROUTES.utilisateurs, element: <UtilisateursListPage /> }],
           },
           {
             element: <ReportingRoute />,

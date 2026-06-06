@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   LogOut,
   School,
+  User,
+  UserCog,
   Wallet,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -68,6 +70,12 @@ const TENANT_NAV_ITEMS: NavItem[] = [
     label: "Reporting",
     icon: BarChart3,
     roles: ["promoteur", "directeur", "secretaire", "comptable"],
+  },
+  {
+    to: ROUTES.utilisateurs,
+    label: "Utilisateurs",
+    icon: UserCog,
+    roles: ["promoteur"],
   },
 ];
 
@@ -140,6 +148,30 @@ export function AppLayout(): React.JSX.Element {
             </NavLink>
           ))}
         </nav>
+        <div className="border-t border-border p-4">
+          <div className="mb-3 px-3">
+            <p className="truncate text-sm font-medium">
+              {user ? `${user.prenom} ${user.nom}` : "Utilisateur"}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {ROLE_LABELS[role] ?? role}
+            </p>
+          </div>
+          <NavLink
+            to={ROUTES.profil}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-muted",
+              )
+            }
+          >
+            <User className="h-4 w-4" />
+            Mon profil
+          </NavLink>
+        </div>
       </aside>
 
       <div className="flex flex-1 flex-col">

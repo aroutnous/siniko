@@ -36,6 +36,8 @@ export const ROUTES = {
   reportingStatistiques: "/reporting/statistiques",
   reportingExports: "/reporting/exports",
   reportingImpressions: "/reporting/impressions",
+  utilisateurs: "/utilisateurs",
+  profil: "/profil",
 } as const;
 
 export const SESSION_KEYS = {
