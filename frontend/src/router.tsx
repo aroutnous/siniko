@@ -8,6 +8,11 @@ import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { ElevesListPage } from "@/pages/eleves/ElevesListPage";
 import { InscriptionPage } from "@/pages/eleves/InscriptionPage";
 import { PaiementsPage } from "@/pages/finance/PaiementsPage";
+import { AuditLogsPage } from "@/pages/platform/AuditLogsPage";
+import { PlansPage } from "@/pages/platform/PlansPage";
+import { PlatformDashboardPage } from "@/pages/platform/PlatformDashboardPage";
+import { TenantCreatePage } from "@/pages/platform/TenantCreatePage";
+import { TenantsListPage } from "@/pages/platform/TenantsListPage";
 import { useAuthStore } from "@/stores/authStore";
 
 function PrivateRoute(): React.JSX.Element {
@@ -20,7 +25,21 @@ function PrivateRoute(): React.JSX.Element {
 
 function PublicRoute(): React.JSX.Element {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const role = useAuthStore((s) => s.user?.role);
   if (isAuthenticated) {
+    return (
+      <Navigate
+        to={role === "platform_owner" ? ROUTES.platformDashboard : ROUTES.dashboard}
+        replace
+      />
+    );
+  }
+  return <Outlet />;
+}
+
+function PlatformRoute(): React.JSX.Element {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role !== "platform_owner") {
     return <Navigate to={ROUTES.dashboard} replace />;
   }
   return <Outlet />;
@@ -41,6 +60,16 @@ export const router = createBrowserRouter([
           { path: ROUTES.eleves, element: <ElevesListPage /> },
           { path: ROUTES.elevesInscrire, element: <InscriptionPage /> },
           { path: ROUTES.financePaiements, element: <PaiementsPage /> },
+          {
+            element: <PlatformRoute />,
+            children: [
+              { path: ROUTES.platformDashboard, element: <PlatformDashboardPage /> },
+              { path: ROUTES.platformTenants, element: <TenantsListPage /> },
+              { path: ROUTES.platformTenantsCreate, element: <TenantCreatePage /> },
+              { path: ROUTES.platformPlans, element: <PlansPage /> },
+              { path: ROUTES.platformAudit, element: <AuditLogsPage /> },
+            ],
+          },
         ],
       },
     ],
@@ -49,7 +78,13 @@ export const router = createBrowserRouter([
     path: "/",
     element: (
       <Navigate
-        to={useAuthStore.getState().isAuthenticated ? ROUTES.dashboard : ROUTES.login}
+        to={
+          useAuthStore.getState().isAuthenticated
+            ? useAuthStore.getState().user?.role === "platform_owner"
+              ? ROUTES.platformDashboard
+              : ROUTES.dashboard
+            : ROUTES.login
+        }
         replace
       />
     ),

@@ -7,6 +7,11 @@ export const ROUTES = {
   eleves: "/eleves",
   elevesInscrire: "/eleves/inscrire",
   financePaiements: "/finance/paiements",
+  platformDashboard: "/platform",
+  platformTenants: "/platform/tenants",
+  platformTenantsCreate: "/platform/tenants/nouveau",
+  platformPlans: "/platform/plans",
+  platformAudit: "/platform/audit",
 } as const;
 
 export const SESSION_KEYS = {

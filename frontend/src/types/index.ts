@@ -124,3 +124,75 @@ export interface TableauBordResponse {
 export interface ApiError {
   detail: string | { msg: string }[];
 }
+
+export type StatutTenant = "actif" | "suspendu" | "inactif";
+
+export interface PlatformTenant {
+  id: string;
+  nom: string;
+  slug: string;
+  email: string | null;
+  telephone: string | null;
+  adresse: string | null;
+  logo_url: string | null;
+  statut: StatutTenant;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface PlatformStats {
+  nb_tenants: number;
+  nb_eleves_total: number;
+  nb_utilisateurs_total: number;
+  revenus_mois: number;
+}
+
+export interface PlanAbonnement {
+  id: string;
+  nom: string;
+  prix_mensuel: number;
+  max_eleves: number | null;
+  max_utilisateurs: number | null;
+  fonctionnalites: Record<string, boolean | string | number>;
+  est_actif: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface AuditLog {
+  id: string;
+  tenant_id: string | null;
+  utilisateur_id: string | null;
+  action: string;
+  table_cible: string | null;
+  enregistrement_id: string | null;
+  ip_address: string | null;
+  resultat: string | null;
+  nouvelles_valeurs: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface TenantCreatePayload {
+  nom: string;
+  email: string;
+  plan_id: string;
+  telephone?: string;
+  adresse?: string;
+  promoteur_email: string;
+  promoteur_nom: string;
+  promoteur_prenom: string;
+}
+
+export interface TenantCreateResponse {
+  tenant: PlatformTenant;
+  promoteur_email: string;
+  mot_de_passe_temporaire: string;
+}
+
+export interface PlanCreatePayload {
+  nom: string;
+  prix_mensuel: string;
+  max_eleves?: number;
+  max_utilisateurs?: number;
+  fonctionnalites?: Record<string, boolean | string | number>;
+}

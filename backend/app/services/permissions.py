@@ -4,7 +4,7 @@ from app.models.enums import RoleUtilisateur
 
 # Permissions nommées : module.action (ex. auth.login, users.read)
 ROLE_PERMISSIONS: dict[RoleUtilisateur, frozenset[str]] = {
-    RoleUtilisateur.PLATFORM_OWNER: frozenset({"*"}),
+    RoleUtilisateur.PLATFORM_OWNER: frozenset({"*", "platform.admin"}),
     RoleUtilisateur.PROMOTEUR: frozenset(
         {
             "tenant.read",

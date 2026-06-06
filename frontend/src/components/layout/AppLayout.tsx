@@ -1,4 +1,7 @@
 import {
+  Building2,
+  ClipboardList,
+  CreditCard,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -20,24 +23,51 @@ interface NavItem {
   roles: RoleUtilisateur[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+const TENANT_NAV_ITEMS: NavItem[] = [
   {
     to: ROUTES.dashboard,
     label: "Tableau de bord",
     icon: LayoutDashboard,
-    roles: ["platform_owner", "promoteur", "directeur", "secretaire", "comptable"],
+    roles: ["promoteur", "directeur", "secretaire", "comptable"],
   },
   {
     to: ROUTES.eleves,
     label: "Élèves",
     icon: GraduationCap,
-    roles: ["platform_owner", "promoteur", "directeur", "secretaire"],
+    roles: ["promoteur", "directeur", "secretaire"],
   },
   {
     to: ROUTES.financePaiements,
     label: "Paiements",
     icon: Wallet,
-    roles: ["platform_owner", "promoteur", "secretaire", "comptable"],
+    roles: ["promoteur", "secretaire", "comptable"],
+  },
+];
+
+const PLATFORM_NAV_ITEMS: NavItem[] = [
+  {
+    to: ROUTES.platformDashboard,
+    label: "Vue plateforme",
+    icon: LayoutDashboard,
+    roles: ["platform_owner"],
+  },
+  {
+    to: ROUTES.platformTenants,
+    label: "Tenants",
+    icon: Building2,
+    roles: ["platform_owner"],
+  },
+  {
+    to: ROUTES.platformPlans,
+    label: "Plans",
+    icon: CreditCard,
+    roles: ["platform_owner"],
+  },
+  {
+    to: ROUTES.platformAudit,
+    label: "Audit",
+    icon: ClipboardList,
+    roles: ["platform_owner"],
   },
 ];
 
@@ -46,7 +76,8 @@ export function AppLayout(): React.JSX.Element {
   const { user, tenant, logout } = useAuthStore();
 
   const role = user?.role ?? "secretaire";
-  const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(role));
+  const navSource = role === "platform_owner" ? PLATFORM_NAV_ITEMS : TENANT_NAV_ITEMS;
+  const visibleNav = navSource.filter((item) => item.roles.includes(role));
 
   const handleLogout = async (): Promise<void> => {
     await logout();

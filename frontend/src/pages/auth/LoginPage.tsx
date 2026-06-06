@@ -25,12 +25,14 @@ export function LoginPage(): React.JSX.Element {
     setError(null);
     setLoading(true);
     try {
-      await login({
+      const response = await login({
         tenant_slug: etablissement.trim(),
         email: email.trim(),
         password,
       });
-      navigate(ROUTES.dashboard);
+      navigate(
+        response.role === "platform_owner" ? ROUTES.platformDashboard : ROUTES.dashboard,
+      );
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
