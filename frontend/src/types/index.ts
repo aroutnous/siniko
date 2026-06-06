@@ -38,6 +38,36 @@ export interface LoginResponse {
   tenant_slug: string;
 }
 
+export interface Inscription {
+  id: string;
+  eleve_id: string;
+  classe_id: string;
+  annee_scolaire_id: string;
+  date_inscription: string;
+  statut: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface Absence {
+  id: string;
+  eleve_id: string;
+  classe_id: string;
+  date_absence: string;
+  type: string;
+  justifiee: boolean;
+  motif: string | null;
+  saisi_par: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface DossierEleve {
+  eleve: Eleve;
+  inscriptions: Inscription[];
+  absences: Absence[];
+}
+
 export interface Eleve {
   id: string;
   tenant_id: string;

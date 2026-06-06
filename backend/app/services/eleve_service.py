@@ -2,13 +2,19 @@
 
 import uuid
 from datetime import UTC, date, datetime
+from io import BytesIO
 from typing import Any
 
 from fastapi import HTTPException, status
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.eleve import Absence, Eleve, Inscription
+from app.models.enums import StatutInscription
+from app.models.tenant import Tenant
 from app.models.enums import StatutEleve, StatutInscription, TypeAbsence
 from app.models.etablissement import AnneeScolaire, Classe, Periode
 from app.schemas.eleve import (
@@ -373,7 +379,102 @@ class EleveService:
             non_justifiees=total - justifiees,
         )
 
+    def generer_carte_scolaire(self, eleve_id: uuid.UUID) -> bytes:
+        """Carte scolaire PDF en mémoire (BytesIO)."""
+        ctx = self._get_contexte_document(eleve_id)
+        lines = [
+            f"Établissement : {ctx['etablissement']}",
+            f"Année scolaire : {ctx['annee_libelle']}",
+            "",
+            f"Nom : {ctx['eleve'].nom} {ctx['eleve'].prenom}",
+            f"Matricule : {ctx['eleve'].matricule}",
+            f"Classe : {ctx['classe_nom']}",
+            f"Photo : {ctx['eleve'].photo_url or 'Non renseignée'}",
+            f"Logo : {ctx['logo_url'] or 'Non renseigné'}",
+        ]
+        return self._build_pdf("Carte scolaire", lines)
+
+    def generer_attestation(self, eleve_id: uuid.UUID) -> bytes:
+        """Attestation de scolarité officielle."""
+        ctx = self._get_contexte_document(eleve_id)
+        lines = [
+            f"L'établissement {ctx['etablissement']} certifie que :",
+            "",
+            f"M./Mme {ctx['eleve'].nom} {ctx['eleve'].prenom}",
+            f"Matricule : {ctx['eleve'].matricule}",
+            f"Classe : {ctx['classe_nom']}",
+            "",
+            f"est régulièrement inscrit(e) pour l'année scolaire {ctx['annee_libelle']}.",
+            "",
+            "La présente attestation est délivrée pour servir et valoir ce que de droit.",
+        ]
+        return self._build_pdf("Attestation de scolarité", lines)
+
+    def generer_certificat(self, eleve_id: uuid.UUID) -> bytes:
+        """Certificat de fin d'année / de scolarité."""
+        ctx = self._get_contexte_document(eleve_id)
+        lines = [
+            f"L'établissement {ctx['etablissement']} certifie que :",
+            "",
+            f"M./Mme {ctx['eleve'].nom} {ctx['eleve'].prenom}",
+            f"Matricule : {ctx['eleve'].matricule}",
+            f"Classe : {ctx['classe_nom']}",
+            "",
+            (
+                f"a suivi les cours de l'année scolaire {ctx['annee_libelle']} "
+                "et satisfait aux conditions de scolarité de l'établissement."
+            ),
+            "",
+            "Certificat de scolarité délivré à la demande de l'intéressé(e).",
+        ]
+        return self._build_pdf("Certificat de scolarité", lines)
+
     # ── Helpers privés ──────────────────────────────────────────────────────
+
+    def _build_pdf(self, title: str, lines: list[str]) -> bytes:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        elements = [Paragraph(title, styles["Title"]), Spacer(1, 12)]
+        for line in lines:
+            elements.append(Paragraph(line, styles["Normal"]))
+            elements.append(Spacer(1, 6))
+        doc.build(elements)
+        return buffer.getvalue()
+
+    def _get_contexte_document(self, eleve_id: uuid.UUID) -> dict[str, Any]:
+        eleve = self._get_eleve(eleve_id)
+        inscription = self._get_inscription_active(eleve.id)
+        classe = self._get_classe(inscription.classe_id)
+        annee = self._get_annee(inscription.annee_scolaire_id)
+        tenant = (
+            self.db.query(Tenant).filter(Tenant.id == self.tenant_id).first()
+        )
+        return {
+            "eleve": eleve,
+            "classe_nom": classe.nom,
+            "annee_libelle": annee.libelle,
+            "etablissement": tenant.nom if tenant else "Établissement",
+            "logo_url": tenant.logo_url if tenant else None,
+        }
+
+    def _get_inscription_active(self, eleve_id: uuid.UUID) -> Inscription:
+        inscription = (
+            self.db.query(Inscription)
+            .filter(
+                Inscription.tenant_id == self.tenant_id,
+                Inscription.eleve_id == eleve_id,
+                Inscription.statut == StatutInscription.INSCRIT,
+            )
+            .order_by(Inscription.date_inscription.desc())
+            .first()
+        )
+        if inscription is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Aucune inscription active pour cet élève",
+            )
+        return inscription
 
     def _filtrer_par_periode(self, query, periode_id: uuid.UUID | None):
         if periode_id is None:

@@ -149,3 +149,22 @@ class SituationFinanciereResponse(BaseModel):
     total_depenses: Decimal
     total_salaires: Decimal
     solde: Decimal
+
+
+class ImpayeResponse(BaseModel):
+    eleve_id: uuid.UUID
+    matricule: str
+    nom: str
+    prenom: str
+    total_du: Decimal
+    total_paye: Decimal
+    montant_restant: Decimal
+
+
+class MobileMoneyWebhookPayload(BaseModel):
+    tenant_id: uuid.UUID
+    eleve_id: uuid.UUID
+    frais_id: uuid.UUID
+    annee_scolaire_id: uuid.UUID
+    montant_paye: Decimal = Field(..., gt=0)
+    reference_externe: str = Field(..., min_length=1, max_length=100)

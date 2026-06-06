@@ -6,6 +6,7 @@ export const ROUTES = {
   dashboard: "/dashboard",
   eleves: "/eleves",
   elevesInscrire: "/eleves/inscrire",
+  eleveDossier: "/eleves/:eleveId/dossier",
   financePaiements: "/finance/paiements",
   platformDashboard: "/platform",
   platformTenants: "/platform/tenants",

@@ -4,9 +4,11 @@ import uuid
 from datetime import date
 from typing import Annotated, Callable
 
+import json
+
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from app.core.database import DbSession
+from app.core.database import DbSession, set_tenant_context
 from app.core.security import CurrentUser, require_permission
 from app.models.auth import Utilisateur
 from app.schemas.finance import (
@@ -15,6 +17,7 @@ from app.schemas.finance import (
     DepenseResponse,
     FraisScolaireCreate,
     FraisScolaireResponse,
+    ImpayeResponse,
     PaiementCreate,
     PaiementResponse,
     SalaireCreate,
@@ -247,3 +250,59 @@ def get_situation_financiere(
     annee_id: uuid.UUID = Query(...),
 ) -> SituationFinanciereResponse:
     return _service(db, user, request).get_situation_financiere(annee_id)
+
+
+@router.get("/impayes", response_model=list[ImpayeResponse])
+def get_liste_impayes(
+    request: Request,
+    db: DbSession,
+    user: Annotated[Utilisateur, Depends(require_permission("finance.read"))],
+    annee_id: uuid.UUID = Query(...),
+) -> list[ImpayeResponse]:
+    rows = _service(db, user, request).get_liste_impayes(annee_id)
+    return [ImpayeResponse.model_validate(row) for row in rows]
+
+
+@router.get("/transactions", response_model=list[PaiementResponse])
+def get_historique_transactions(
+    request: Request,
+    db: DbSession,
+    user: Annotated[Utilisateur, Depends(require_permission("finance.read"))],
+    date_debut: date | None = Query(default=None),
+    date_fin: date | None = Query(default=None),
+) -> list[PaiementResponse]:
+    paiements = _service(db, user, request).get_historique_transactions(
+        date_debut, date_fin
+    )
+    return [PaiementResponse.model_validate(p) for p in paiements]
+
+
+@router.post("/webhook/mobile-money", status_code=status.HTTP_201_CREATED)
+async def webhook_mobile_money(
+    request: Request,
+    db: DbSession,
+) -> dict[str, object]:
+    raw_body = await request.body()
+    signature = request.headers.get("X-Webhook-Signature")
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Corps JSON invalide",
+        ) from exc
+
+    tenant_id_raw = payload.get("tenant_id")
+    if not tenant_id_raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tenant_id requis",
+        )
+    tenant_id = uuid.UUID(str(tenant_id_raw))
+    set_tenant_context(db, tenant_id)
+
+    return FinanceService(
+        db=db,
+        tenant_id=tenant_id,
+        ip_address=_client_ip(request),
+    ).webhook_mobile_money(raw_body, signature, payload)

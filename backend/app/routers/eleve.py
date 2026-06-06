@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated, Callable
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import StreamingResponse
 
 from app.core.database import DbSession
 from app.core.security import CurrentUser
@@ -25,6 +26,8 @@ from app.services.eleve_service import EleveService
 from app.services.permissions import role_has_permission
 
 router = APIRouter(prefix="/eleves", tags=["eleves"])
+
+PDF_MEDIA = "application/pdf"
 
 
 def _client_ip(request: Request) -> str | None:
@@ -77,6 +80,14 @@ def require_students_write() -> Callable[..., Utilisateur]:
 
 StudentsReader = Annotated[Utilisateur, Depends(require_students_read())]
 StudentsWriter = Annotated[Utilisateur, Depends(require_students_write())]
+
+
+def _stream_pdf(data: bytes, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        iter([data]),
+        media_type=PDF_MEDIA,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _service(db: DbSession, user: Utilisateur, request: Request) -> EleveService:
@@ -203,6 +214,39 @@ def enregistrer_absence(
     return _service(db, user, request).enregistrer_absence(
         eleve_id, body, user.id
     )
+
+
+@router.get("/{eleve_id}/carte-scolaire")
+def get_carte_scolaire(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: StudentsReader,
+) -> StreamingResponse:
+    data = _service(db, user, request).generer_carte_scolaire(eleve_id)
+    return _stream_pdf(data, f"carte-scolaire-{eleve_id}.pdf")
+
+
+@router.get("/{eleve_id}/attestation")
+def get_attestation(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: StudentsReader,
+) -> StreamingResponse:
+    data = _service(db, user, request).generer_attestation(eleve_id)
+    return _stream_pdf(data, f"attestation-{eleve_id}.pdf")
+
+
+@router.get("/{eleve_id}/certificat")
+def get_certificat(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: StudentsReader,
+) -> StreamingResponse:
+    data = _service(db, user, request).generer_certificat(eleve_id)
+    return _stream_pdf(data, f"certificat-{eleve_id}.pdf")
 
 
 @router.get("/{eleve_id}/absences", response_model=list[AbsenceResponse])

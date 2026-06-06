@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173"],
         alias="ALLOWED_ORIGINS",
     )
+    mobile_money_webhook_secret: str = Field(
+        default="dev-mobile-money-webhook-secret",
+        alias="MOBILE_MONEY_WEBHOOK_SECRET",
+    )
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

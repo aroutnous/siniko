@@ -23,6 +23,7 @@ os.environ["JWT_EXPIRE_MINUTES"] = "15"
 os.environ["ENVIRONMENT"] = "development"
 os.environ["DEBUG"] = "true"
 os.environ["ALLOWED_ORIGINS"] = "http://localhost:5173"
+os.environ["MOBILE_MONEY_WEBHOOK_SECRET"] = "test-webhook-secret"
 
 from app.core.config import get_settings, settings  # noqa: E402
 

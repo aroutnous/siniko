@@ -1,11 +1,15 @@
 """Tests module M5 — Comptabilité & Finance."""
 
+import hashlib
+import hmac
+import json
 import uuid
 from datetime import date
 
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
 from app.core.security import hash_password
 from app.models.auth import Utilisateur
 from app.models.enums import (
@@ -505,3 +509,133 @@ async def test_situation_financiere_globale(
     assert float(data["total_recettes"]) == 30000.0
     assert float(data["total_depenses"]) == 5000.0
     assert float(data["solde"]) == 25000.0
+
+
+def _webhook_signature(body: bytes) -> str:
+    return hmac.new(
+        settings.mobile_money_webhook_secret.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_liste_impayes(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    comptable_headers: dict[str, str],
+) -> None:
+    ctx = await _create_finance_context(
+        async_client, auth_headers, comptable_headers
+    )
+
+    response = await async_client.get(
+        "/finance/impayes",
+        params={"annee_id": ctx["annee_id"]},
+        headers=comptable_headers,
+    )
+    assert response.status_code == 200
+    impayes = response.json()
+    assert len(impayes) >= 1
+    assert float(impayes[0]["montant_restant"]) == 50000.0
+
+
+@pytest.mark.asyncio
+async def test_historique_transactions(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    comptable_headers: dict[str, str],
+    secretaire_headers: dict[str, str],
+) -> None:
+    ctx = await _create_finance_context(
+        async_client, auth_headers, comptable_headers
+    )
+    await async_client.post(
+        "/finance/paiements",
+        json={
+            "eleve_id": ctx["eleve_id"],
+            "frais_id": ctx["frais_id"],
+            "annee_scolaire_id": ctx["annee_id"],
+            "montant_paye": "12000",
+            "mode_paiement": "especes",
+        },
+        headers=secretaire_headers,
+    )
+
+    response = await async_client.get(
+        "/finance/transactions",
+        params={
+            "date_debut": date.today().isoformat(),
+            "date_fin": date.today().isoformat(),
+        },
+        headers=comptable_headers,
+    )
+    assert response.status_code == 200
+    transactions = response.json()
+    assert len(transactions) >= 1
+    assert transactions[0]["mode_paiement"] == "especes"
+
+
+@pytest.mark.asyncio
+async def test_webhook_mobile_money_valide(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    comptable_headers: dict[str, str],
+    seed_auth_data: tuple[Tenant, Utilisateur],
+) -> None:
+    ctx = await _create_finance_context(
+        async_client, auth_headers, comptable_headers
+    )
+    tenant, _ = seed_auth_data
+    payload = {
+        "tenant_id": str(tenant.id),
+        "eleve_id": ctx["eleve_id"],
+        "frais_id": ctx["frais_id"],
+        "annee_scolaire_id": ctx["annee_id"],
+        "montant_paye": "7500",
+        "reference_externe": f"MM-{uuid.uuid4().hex[:12]}",
+    }
+    raw = json.dumps(payload).encode("utf-8")
+    response = await async_client.post(
+        "/finance/webhook/mobile-money",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Signature": _webhook_signature(raw),
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "created"
+    assert data["reference"] == payload["reference_externe"]
+
+
+@pytest.mark.asyncio
+async def test_webhook_mobile_money_signature_invalide(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    comptable_headers: dict[str, str],
+    seed_auth_data: tuple[Tenant, Utilisateur],
+) -> None:
+    ctx = await _create_finance_context(
+        async_client, auth_headers, comptable_headers
+    )
+    tenant, _ = seed_auth_data
+    payload = {
+        "tenant_id": str(tenant.id),
+        "eleve_id": ctx["eleve_id"],
+        "frais_id": ctx["frais_id"],
+        "annee_scolaire_id": ctx["annee_id"],
+        "montant_paye": "7500",
+        "reference_externe": f"MM-{uuid.uuid4().hex[:12]}",
+    }
+    raw = json.dumps(payload).encode("utf-8")
+    response = await async_client.post(
+        "/finance/webhook/mobile-money",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Signature": "signature-invalide",
+        },
+    )
+    assert response.status_code == 401

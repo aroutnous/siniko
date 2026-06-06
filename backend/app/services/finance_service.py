@@ -1,5 +1,7 @@
 """Logique métier M5 — Comptabilité & Finance."""
 
+import hashlib
+import hmac
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -8,6 +10,8 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 
 from app.models.eleve import Eleve, Inscription
 from app.models.enums import (
@@ -49,7 +53,7 @@ class FinanceService:
         self,
         db: Session,
         tenant_id: uuid.UUID,
-        utilisateur_id: uuid.UUID,
+        utilisateur_id: uuid.UUID | None = None,
         ip_address: str | None = None,
     ) -> None:
         self.db = db
@@ -420,6 +424,139 @@ class FinanceService:
             total_salaires=total_salaires,
             solde=solde,
         )
+
+    def get_liste_impayes(self, annee_id: uuid.UUID) -> list[dict[str, Any]]:
+        """Élèves avec frais dus supérieurs aux paiements validés."""
+        self._get_annee(annee_id)
+        inscriptions = (
+            self.db.query(Inscription)
+            .filter(
+                Inscription.tenant_id == self.tenant_id,
+                Inscription.annee_scolaire_id == annee_id,
+                Inscription.statut == StatutInscription.INSCRIT,
+            )
+            .all()
+        )
+
+        impayes: list[dict[str, Any]] = []
+        for inscription in inscriptions:
+            situation = self.get_situation_eleve(inscription.eleve_id, annee_id)
+            if situation.reste_a_payer <= Decimal("0"):
+                continue
+            eleve = self._get_eleve(inscription.eleve_id)
+            impayes.append(
+                {
+                    "eleve_id": eleve.id,
+                    "matricule": eleve.matricule,
+                    "nom": eleve.nom,
+                    "prenom": eleve.prenom,
+                    "total_du": situation.total_du,
+                    "total_paye": situation.total_paye,
+                    "montant_restant": situation.reste_a_payer,
+                }
+            )
+        return sorted(impayes, key=lambda row: row["nom"])
+
+    def get_historique_transactions(
+        self,
+        date_debut: date | None = None,
+        date_fin: date | None = None,
+    ) -> list[Paiement]:
+        """Historique des paiements sur une période."""
+        q = self.db.query(Paiement).filter(Paiement.tenant_id == self.tenant_id)
+        if date_debut is not None:
+            q = q.filter(Paiement.date_paiement >= date_debut)
+        if date_fin is not None:
+            q = q.filter(Paiement.date_paiement <= date_fin)
+        return q.order_by(Paiement.date_paiement.desc(), Paiement.created_at.desc()).all()
+
+    def webhook_mobile_money(
+        self,
+        raw_body: bytes,
+        signature: str | None,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Callback opérateur Mobile Money — validation HMAC puis création paiement."""
+        if not self._verifier_signature_webhook(raw_body, signature):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Signature webhook invalide",
+            )
+
+        from app.schemas.finance import MobileMoneyWebhookPayload
+
+        data = MobileMoneyWebhookPayload.model_validate(payload)
+        if data.tenant_id != self.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="tenant_id incohérent",
+            )
+
+        existing = (
+            self.db.query(Paiement)
+            .filter(
+                Paiement.tenant_id == self.tenant_id,
+                Paiement.reference_transaction == data.reference_externe,
+            )
+            .first()
+        )
+        if existing is not None:
+            return {
+                "status": "duplicate",
+                "paiement_id": str(existing.id),
+                "message": "Paiement déjà enregistré",
+            }
+
+        eleve = self._get_eleve(data.eleve_id)
+        frais = self._get_frais(data.frais_id)
+        self._get_annee(data.annee_scolaire_id)
+
+        if frais.annee_scolaire_id != data.annee_scolaire_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Le frais ne correspond pas à l'année scolaire",
+            )
+
+        paiement = Paiement(
+            tenant_id=self.tenant_id,
+            eleve_id=eleve.id,
+            frais_id=frais.id,
+            annee_scolaire_id=data.annee_scolaire_id,
+            montant_paye=data.montant_paye,
+            mode_paiement=ModePaiement.MOBILE_MONEY,
+            reference_transaction=data.reference_externe,
+            encaisse_par=None,
+            date_paiement=date.today(),
+            statut=StatutPaiement.VALIDE,
+        )
+        self.db.add(paiement)
+        self.db.commit()
+        self.db.refresh(paiement)
+
+        self._ajouter_entree_caisse(paiement.date_paiement, paiement.montant_paye)
+        self._audit(
+            "finance.webhook.mobile_money",
+            "paiements",
+            paiement.id,
+            details={"reference_externe": data.reference_externe},
+        )
+
+        return {
+            "status": "created",
+            "paiement_id": str(paiement.id),
+            "reference": paiement.reference_transaction,
+        }
+
+    @staticmethod
+    def _verifier_signature_webhook(raw_body: bytes, signature: str | None) -> bool:
+        if not signature:
+            return False
+        expected = hmac.new(
+            settings.mobile_money_webhook_secret.encode("utf-8"),
+            raw_body,
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature.strip())
 
     # ── Helpers privés ──────────────────────────────────────────────────────
 

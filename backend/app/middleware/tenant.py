@@ -19,6 +19,7 @@ PUBLIC_PATHS: frozenset[str] = frozenset({
     "/auth/login",
     "/auth/reset-password/request",
     "/auth/reset-password/confirm",
+    "/finance/webhook/mobile-money",
 })
 
 

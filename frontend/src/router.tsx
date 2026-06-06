@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ROUTES } from "@/lib/constants";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import { EleveDossierPage } from "@/pages/eleves/EleveDossierPage";
 import { ElevesListPage } from "@/pages/eleves/ElevesListPage";
 import { InscriptionPage } from "@/pages/eleves/InscriptionPage";
 import { PaiementsPage } from "@/pages/finance/PaiementsPage";
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
         children: [
           { path: ROUTES.dashboard, element: <DashboardPage /> },
           { path: ROUTES.eleves, element: <ElevesListPage /> },
+          { path: ROUTES.eleveDossier, element: <EleveDossierPage /> },
           { path: ROUTES.elevesInscrire, element: <InscriptionPage /> },
           { path: ROUTES.financePaiements, element: <PaiementsPage /> },
           {

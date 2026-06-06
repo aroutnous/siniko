@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -15,6 +15,7 @@ import type { Eleve } from "@/types";
 const PAGE_SIZE = 10;
 
 export function ElevesListPage(): React.JSX.Element {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -46,6 +47,19 @@ export function ElevesListPage(): React.JSX.Element {
       key: "parent",
       header: "Parent",
       render: (r) => r.nom_parent ?? "—",
+    },
+    {
+      key: "dossier",
+      header: "Dossier",
+      render: (r) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(`/eleves/${r.id}/dossier`)}
+        >
+          Voir
+        </Button>
+      ),
     },
   ];
 
