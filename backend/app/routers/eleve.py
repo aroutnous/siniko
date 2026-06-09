@@ -47,8 +47,9 @@ def require_students_read() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.ELEVES_READ.value,
-            Permission.ELEVES_WRITE.value,
+            Permission.ELEVES_CONSULTER.value,
+            Permission.ELEVES_INSCRIRE.value,
+            Permission.ELEVES_DOSSIERS.value,
         ):
             from fastapi import HTTPException
 
@@ -65,7 +66,13 @@ def require_students_write() -> Callable[..., Utilisateur]:
     """Écriture : students.manage ou students.update (Secrétaire, Directeur, Promoteur)."""
 
     async def checker(current_user: CurrentUser, db: DbSession) -> Utilisateur:
-        if not user_has_permission(db, current_user, Permission.ELEVES_WRITE.value):
+        if not user_has_any_permission(
+            db,
+            current_user,
+            Permission.ELEVES_INSCRIRE.value,
+            Permission.ELEVES_DOSSIERS.value,
+            Permission.ABSENCES_GERER.value,
+        ):
             from fastapi import HTTPException
 
             raise HTTPException(

@@ -58,7 +58,7 @@ def test_promoteur_acces_total(db_session: Session) -> None:
     service = PermissionService(db_session)
 
     assert service.get_permissions(promoteur.id, tenant.id) == ["*"]
-    assert service.verifier_permission(promoteur, Permission.ELEVES_DELETE.value) is True
+    assert service.verifier_permission(promoteur, Permission.ELEVES_CONSULTER.value) is True
     assert service.verifier_permission(promoteur, "any.permission") is True
 
 
@@ -70,13 +70,15 @@ def test_permission_accordee(db_session: Session) -> None:
 
     service.accorder_permission(
         cible.id,
-        Permission.PAIEMENTS_READ.value,
+        Permission.PAIEMENTS_CONSULTER.value,
         admin.id,
         tenant.id,
     )
 
-    assert Permission.PAIEMENTS_READ.value in service.get_permissions(cible.id, tenant.id)
-    assert service.verifier_permission(cible, Permission.PAIEMENTS_READ.value) is True
+    assert Permission.PAIEMENTS_CONSULTER.value in service.get_permissions(
+        cible.id, tenant.id
+    )
+    assert service.verifier_permission(cible, Permission.PAIEMENTS_CONSULTER.value) is True
 
 
 def test_permission_refusee(db_session: Session) -> None:
@@ -84,7 +86,7 @@ def test_permission_refusee(db_session: Session) -> None:
     user = _create_user(db_session, tenant, RoleUtilisateur.SECRETAIRE)
     service = PermissionService(db_session)
 
-    assert service.verifier_permission(user, Permission.NOTES_WRITE.value) is False
+    assert service.verifier_permission(user, Permission.NOTES_SAISIR.value) is False
 
 
 def test_set_permissions_remplace_tout(db_session: Session) -> None:
@@ -94,24 +96,24 @@ def test_set_permissions_remplace_tout(db_session: Session) -> None:
     service = PermissionService(db_session)
 
     service.accorder_permission(
-        cible.id, Permission.PAIEMENTS_READ.value, admin.id, tenant.id
+        cible.id, Permission.PAIEMENTS_CONSULTER.value, admin.id, tenant.id
     )
     service.accorder_permission(
-        cible.id, Permission.FRAIS_READ.value, admin.id, tenant.id
+        cible.id, Permission.FRAIS_CONSULTER.value, admin.id, tenant.id
     )
 
     service.set_permissions(
         cible.id,
-        [Permission.DEPENSES_READ.value, Permission.DEPENSES_WRITE.value],
+        [Permission.DEPENSES_CONSULTER.value, Permission.DEPENSES_GERER.value],
         admin.id,
         tenant.id,
     )
 
     perms = service.get_permissions(cible.id, tenant.id)
-    assert Permission.PAIEMENTS_READ.value not in perms
-    assert Permission.FRAIS_READ.value not in perms
-    assert Permission.DEPENSES_READ.value in perms
-    assert Permission.DEPENSES_WRITE.value in perms
+    assert Permission.PAIEMENTS_CONSULTER.value not in perms
+    assert Permission.FRAIS_CONSULTER.value not in perms
+    assert Permission.DEPENSES_CONSULTER.value in perms
+    assert Permission.DEPENSES_GERER.value in perms
 
 
 def test_revoquer_permission(db_session: Session) -> None:
@@ -121,17 +123,17 @@ def test_revoquer_permission(db_session: Session) -> None:
     service = PermissionService(db_session)
 
     service.accorder_permission(
-        cible.id, Permission.PAIEMENTS_WRITE.value, admin.id, tenant.id
+        cible.id, Permission.PAIEMENTS_ENREGISTRER.value, admin.id, tenant.id
     )
-    assert service.verifier_permission(cible, Permission.PAIEMENTS_WRITE.value)
+    assert service.verifier_permission(cible, Permission.PAIEMENTS_ENREGISTRER.value)
 
     service.revoquer_permission(
         cible.id,
-        Permission.PAIEMENTS_WRITE.value,
+        Permission.PAIEMENTS_ENREGISTRER.value,
         tenant.id,
         accordee_par_id=admin.id,
     )
-    assert not service.verifier_permission(cible, Permission.PAIEMENTS_WRITE.value)
+    assert not service.verifier_permission(cible, Permission.PAIEMENTS_ENREGISTRER.value)
 
 
 def test_isolation_tenant_permissions(db_session: Session) -> None:
@@ -143,7 +145,7 @@ def test_isolation_tenant_permissions(db_session: Session) -> None:
 
     service.accorder_permission(
         user_b.id,
-        Permission.ELEVES_READ.value,
+        Permission.ELEVES_CONSULTER.value,
         admin_a.id,
         tenant_b.id,
     )
@@ -152,7 +154,9 @@ def test_isolation_tenant_permissions(db_session: Session) -> None:
         service.get_permissions(user_b.id, tenant_a.id)
     assert exc_info.value.status_code == 404
 
-    assert service.get_permissions(user_b.id, tenant_b.id) == [Permission.ELEVES_READ.value]
+    assert service.get_permissions(user_b.id, tenant_b.id) == [
+        Permission.ELEVES_CONSULTER.value
+    ]
 
 
 def test_platform_owner_acces_platform_admin(db_session: Session) -> None:
@@ -161,8 +165,58 @@ def test_platform_owner_acces_platform_admin(db_session: Session) -> None:
     service = PermissionService(db_session)
 
     assert service.verifier_permission(owner, Permission.PLATFORM_ADMIN.value) is True
-    assert service.verifier_permission(owner, Permission.ELEVES_READ.value) is False
+    assert service.verifier_permission(owner, Permission.ELEVES_CONSULTER.value) is False
     assert service.get_permissions(owner.id, tenant.id) == [Permission.PLATFORM_ADMIN.value]
+
+
+@pytest.mark.asyncio
+async def test_me_permissions_sans_utilisateurs_read(
+    async_client: AsyncClient,
+    db_session: Session,
+    unique_ip_headers: dict[str, str],
+) -> None:
+    tenant = _create_tenant(db_session)
+    promoteur = _create_user(db_session, tenant, RoleUtilisateur.PROMOTEUR)
+    directeur = _create_user(db_session, tenant, RoleUtilisateur.DIRECTEUR)
+    service = PermissionService(db_session)
+
+    for permission in (
+        Permission.NOTES_CONSULTER.value,
+        Permission.RESULTATS_CONSULTER.value,
+        Permission.STATISTIQUES_PEDAGOGIE.value,
+    ):
+        service.accorder_permission(
+            directeur.id,
+            permission,
+            promoteur.id,
+            tenant.id,
+        )
+
+    login = await async_client.post(
+        "/auth/login",
+        json={
+            "email": directeur.email,
+            "password": TEST_PASSWORD,
+            "tenant_slug": tenant.slug,
+        },
+        headers=unique_ip_headers,
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    me_perms = await async_client.get("/auth/me/permissions", headers=headers)
+    assert me_perms.status_code == 200
+    assert me_perms.json()["permissions"] == [
+        Permission.NOTES_CONSULTER.value,
+        Permission.RESULTATS_CONSULTER.value,
+        Permission.STATISTIQUES_PEDAGOGIE.value,
+    ]
+
+    admin_perms = await async_client.get(
+        f"/auth/utilisateurs/{directeur.id}/permissions",
+        headers=headers,
+    )
+    assert admin_perms.status_code == 403
 
 
 @pytest.mark.asyncio

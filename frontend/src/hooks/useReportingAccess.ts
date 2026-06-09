@@ -1,3 +1,4 @@
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { useAuthStore } from "@/stores/authStore";
 import type { RoleUtilisateur } from "@/types";
 
@@ -11,19 +12,15 @@ interface ReportingAccess {
 
 export function useReportingAccess(): ReportingAccess {
   const role = useAuthStore((s) => s.user?.role ?? "secretaire");
-
-  const isPromoteur = role === "promoteur";
-  const isDirecteur = role === "directeur";
-  const isComptable = role === "comptable";
-  const isSecretaire = role === "secretaire";
+  const hasPermission = useHasPermission();
 
   return {
     role,
     canAccessTableauBord:
-      isPromoteur || isDirecteur || isComptable || isSecretaire,
-    canAccessStatistiques: isPromoteur || isDirecteur || isComptable,
-    canAccessExports: isPromoteur || isDirecteur || isComptable,
+      hasPermission("rapports.read") || hasPermission("statistiques.read"),
+    canAccessStatistiques: hasPermission("statistiques.read"),
+    canAccessExports: hasPermission("rapports.read"),
     canAccessImpressions:
-      isPromoteur || isDirecteur || isComptable || isSecretaire,
+      hasPermission("rapports.imprimer") || hasPermission("rapports.read"),
   };
 }

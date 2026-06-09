@@ -107,7 +107,7 @@ export function getErrorMessage(error: unknown): string {
       return detail.map((d) => d.msg).join(", ");
     }
     if (error.response?.status === 401) return "Identifiants invalides ou session expirée";
-    if (error.response?.status === 403) return "Permission insuffisante";
+    if (error.response?.status === 403) return "Accès refusé";
     if (error.response?.status === 429) return "Trop de tentatives. Réessayez plus tard.";
   }
   return "Une erreur est survenue";

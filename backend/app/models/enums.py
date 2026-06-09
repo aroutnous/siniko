@@ -22,38 +22,72 @@ class RoleUtilisateur(str, enum.Enum):
 
 
 class Permission(str, enum.Enum):
-    ELEVES_READ = "eleves.read"
-    ELEVES_WRITE = "eleves.write"
-    ELEVES_DELETE = "eleves.delete"
-    ELEVES_IMPRIMER = "eleves.imprimer"
-    ENSEIGNANTS_READ = "enseignants.read"
-    ENSEIGNANTS_WRITE = "enseignants.write"
-    CLASSES_READ = "classes.read"
-    CLASSES_WRITE = "classes.write"
-    ABSENCES_READ = "absences.read"
-    ABSENCES_WRITE = "absences.write"
-    NOTES_READ = "notes.read"
-    NOTES_WRITE = "notes.write"
-    BULLETINS_READ = "bulletins.read"
-    BULLETINS_WRITE = "bulletins.write"
-    BULLETINS_VALIDATE = "bulletins.validate"
-    BULLETINS_PUBLISH = "bulletins.publish"
-    BULLETINS_IMPRIMER = "bulletins.imprimer"
-    PAIEMENTS_READ = "paiements.read"
-    PAIEMENTS_WRITE = "paiements.write"
-    PAIEMENTS_VALIDATE = "paiements.validate"
-    PAIEMENTS_IMPRIMER = "paiements.imprimer"
-    FRAIS_READ = "frais.read"
-    FRAIS_WRITE = "frais.write"
-    SALAIRES_READ = "salaires.read"
-    SALAIRES_WRITE = "salaires.write"
-    DEPENSES_READ = "depenses.read"
-    DEPENSES_WRITE = "depenses.write"
-    RAPPORTS_READ = "rapports.read"
+    # Établissement
+    ETABLISSEMENT_ACCEDER = "etablissement.acceder"
+    ETABLISSEMENT_CONFIGURER = "etablissement.configurer"
+
+    # Élèves
+    ELEVES_INSCRIRE = "eleves.inscrire"
+    ELEVES_DOSSIERS = "eleves.dossiers"
+    ELEVES_CONSULTER = "eleves.consulter"
+
+    # Enseignants
+    ENSEIGNANTS_CONSULTER = "enseignants.consulter"
+    ENSEIGNANTS_GERER = "enseignants.gerer"
+
+    # Classes
+    CLASSES_CONSULTER = "classes.consulter"
+    CLASSES_GERER = "classes.gerer"
+
+    # Absences
+    ABSENCES_CONSULTER = "absences.consulter"
+    ABSENCES_GERER = "absences.gerer"
+
+    # Pédagogie
+    NOTES_SAISIR = "notes.saisir"
+    NOTES_CONSULTER = "notes.consulter"
+    BULLETINS_GENERER = "bulletins.generer"
+    BULLETINS_VALIDER = "bulletins.valider"
+    BULLETINS_PUBLIER = "bulletins.publier"
+    RESULTATS_CONSULTER = "resultats.consulter"
+
+    # Paiements
+    PAIEMENTS_ENREGISTRER = "paiements.enregistrer"
+    PAIEMENTS_CONSULTER = "paiements.consulter"
+    PAIEMENTS_VALIDER = "paiements.valider"
+    PAIEMENTS_SUIVRE_RETARD = "paiements.suivre_retard"
+    PAIEMENTS_HISTORIQUE = "paiements.historique"
+
+    # Finance
+    FRAIS_CONSULTER = "frais.consulter"
+    FRAIS_GERER = "frais.gerer"
+    SALAIRES_CONSULTER = "salaires.consulter"
+    SALAIRES_GERER = "salaires.gerer"
+    DEPENSES_CONSULTER = "depenses.consulter"
+    DEPENSES_GERER = "depenses.gerer"
+    CAISSE_CONSULTER = "caisse.consulter"
+    CAISSE_GERER = "caisse.gerer"
+
+    # Hub Documentaire
+    DOCUMENTS_BULLETINS = "documents.bulletins"
+    DOCUMENTS_RECUS = "documents.recus"
+    DOCUMENTS_CARTES_SCOLAIRES = "documents.cartes_scolaires"
+    DOCUMENTS_ATTESTATIONS = "documents.attestations"
+    DOCUMENTS_CERTIFICATS = "documents.certificats"
+    DOCUMENTS_LISTES_CLASSE = "documents.listes_classe"
+    DOCUMENTS_RAPPORTS = "documents.rapports"
+
+    # Rapports & Statistiques
+    STATISTIQUES_PEDAGOGIE = "statistiques.pedagogie"
+    STATISTIQUES_FINANCE = "statistiques.finance"
+    RAPPORTS_FINANCIERS = "rapports.financiers"
     RAPPORTS_IMPRIMER = "rapports.imprimer"
-    STATISTIQUES_READ = "statistiques.read"
-    UTILISATEURS_READ = "utilisateurs.read"
-    UTILISATEURS_WRITE = "utilisateurs.write"
+
+    # Utilisateurs
+    UTILISATEURS_CONSULTER = "utilisateurs.consulter"
+    UTILISATEURS_GERER = "utilisateurs.gerer"
+
+    # Platform Owner
     PLATFORM_ADMIN = "platform.admin"
 
 

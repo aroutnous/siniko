@@ -1,3 +1,4 @@
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { useAuthStore } from "@/stores/authStore";
 import type { RoleUtilisateur } from "@/types";
 
@@ -16,21 +17,21 @@ interface PedagogieAccess {
 
 export function usePedagogieAccess(): PedagogieAccess {
   const role = useAuthStore((s) => s.user?.role ?? "secretaire");
-
-  const isDirecteur = role === "directeur";
-  const isSecretaire = role === "secretaire";
-  const isPromoteur = role === "promoteur";
+  const hasPermission = useHasPermission();
 
   return {
     role,
-    canAccessNotes: isDirecteur || isSecretaire,
-    canAccessBulletins: isDirecteur || isPromoteur,
-    canAccessResultats: isDirecteur || isPromoteur,
-    canAccessHistorique: isDirecteur || isPromoteur,
-    canSaveNotes: isDirecteur || isSecretaire,
-    canGenerateBulletins: isDirecteur,
-    canLoadBulletins: isDirecteur || isPromoteur,
-    canValidateBulletins: isDirecteur,
-    canPublishBulletins: isDirecteur,
+    canAccessNotes: hasPermission("notes.read") || hasPermission("notes.write"),
+    canAccessBulletins:
+      hasPermission("bulletins.read") ||
+      hasPermission("bulletins.write") ||
+      hasPermission("bulletins.validate"),
+    canAccessResultats: hasPermission("notes.read") || hasPermission("bulletins.read"),
+    canAccessHistorique: hasPermission("notes.read"),
+    canSaveNotes: hasPermission("notes.write"),
+    canGenerateBulletins: hasPermission("bulletins.write"),
+    canLoadBulletins: hasPermission("bulletins.read") || hasPermission("bulletins.write"),
+    canValidateBulletins: hasPermission("bulletins.validate"),
+    canPublishBulletins: hasPermission("bulletins.publish"),
   };
 }

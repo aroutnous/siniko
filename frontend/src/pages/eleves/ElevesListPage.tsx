@@ -22,7 +22,7 @@ const PAGE_SIZE = 10;
 
 export function ElevesListPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const { canManage } = useElevesAccess();
+  const { canRead, canManage } = useElevesAccess();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [classeId, setClasseId] = useState("");
@@ -47,6 +47,7 @@ export function ElevesListPage(): React.JSX.Element {
 
   const { data: eleves = [], isLoading } = useQuery({
     queryKey: ["eleves", search, classeId, anneeId],
+    enabled: canRead,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (search.trim()) params.query = search.trim();

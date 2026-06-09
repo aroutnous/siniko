@@ -6,11 +6,11 @@ import { KpiGrid, type KpiItem } from "@/components/reporting/KpiGrid";
 import { StatsChart } from "@/components/reporting/StatsChart";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { FINANCE_API } from "@/lib/finance-api";
 import { REPORTING_API } from "@/lib/reporting-api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { useHasPermission } from "@/hooks/useHasPermission";
 import type { AnneeScolaire, Paiement, StatistiquesGlobales, TableauBordResponse } from "@/types";
 
 function monthKey(dateStr: string): string {
@@ -21,7 +21,10 @@ function monthKey(dateStr: string): string {
 }
 
 export function TableauBordPage(): React.JSX.Element {
-  const role = useAuthStore((s) => s.user?.role ?? "secretaire");
+  const hasPermission = useHasPermission();
+
+  const canViewReporting =
+    hasPermission("rapports.read") || hasPermission("statistiques.read");
 
   const { data, isLoading } = useQuery({
     queryKey: ["reporting-tableau-bord"],
@@ -29,6 +32,8 @@ export function TableauBordPage(): React.JSX.Element {
       const { data: tb } = await api.get<TableauBordResponse>(REPORTING_API.tableauBord);
       return tb;
     },
+    enabled: canViewReporting,
+    retry: false,
   });
 
   const { data: anneeActive } = useQuery({
@@ -37,6 +42,7 @@ export function TableauBordPage(): React.JSX.Element {
       const { data } = await api.get<AnneeScolaire>(ETABLISSEMENT_API.anneeActive);
       return data;
     },
+    enabled: hasPermission("statistiques.read"),
   });
 
   const { data: stats } = useQuery({
@@ -47,7 +53,7 @@ export function TableauBordPage(): React.JSX.Element {
       });
       return data;
     },
-    enabled: Boolean(anneeActive?.id) && (role === "directeur" || role === "promoteur"),
+    enabled: Boolean(anneeActive?.id) && hasPermission("statistiques.read"),
   });
 
   const sixMonthsAgo = useMemo(() => {
@@ -66,7 +72,7 @@ export function TableauBordPage(): React.JSX.Element {
       });
       return data;
     },
-    enabled: role === "promoteur" || role === "comptable",
+    enabled: hasPermission("paiements.read"),
   });
 
   const { data: depenses = [] } = useQuery({
@@ -78,7 +84,7 @@ export function TableauBordPage(): React.JSX.Element {
       );
       return data;
     },
-    enabled: role === "comptable",
+    enabled: hasPermission("depenses.read"),
   });
 
   const chartData = useMemo((): FinanceChartDatum[] => {
@@ -105,77 +111,77 @@ export function TableauBordPage(): React.JSX.Element {
   const kpis = useMemo((): KpiItem[] => {
     if (!data) return [];
     const d = data.donnees;
+    const items: KpiItem[] = [];
 
-    if (role === "promoteur") {
-      return [
-        { label: "Élèves", value: String(d.nb_eleves ?? 0), color: "blue" },
-        { label: "Classes", value: String(d.nb_classes ?? 0), color: "blue" },
-        {
-          label: "Taux paiement",
-          value: `${Number(d.taux_paiement ?? 0).toFixed(1)} %`,
-          color: "green",
-        },
-        {
-          label: "CA du mois",
-          value: `${Number(d.ca_mois ?? 0).toLocaleString("fr-FR")} FCFA`,
-          color: "amber",
-        },
-      ];
+    if (hasPermission("eleves.read")) {
+      items.push({ label: "Élèves", value: String(d.nb_eleves ?? 0), color: "blue" });
+    }
+    if (hasPermission("classes.read")) {
+      items.push({ label: "Classes", value: String(d.nb_classes ?? 0), color: "blue" });
+    }
+    if (hasPermission("paiements.read") || hasPermission("statistiques.read")) {
+      items.push({
+        label: "Taux paiement",
+        value: `${Number(d.taux_paiement ?? 0).toFixed(1)} %`,
+        color: "green",
+      });
+      items.push({
+        label: "CA du mois",
+        value: `${Number(d.ca_mois ?? 0).toLocaleString("fr-FR")} FCFA`,
+        color: "amber",
+      });
+    }
+    if (hasPermission("statistiques.read") || hasPermission("notes.read")) {
+      items.push({
+        label: "Taux réussite",
+        value: `${Number(d.taux_reussite ?? 0).toFixed(1)} %`,
+        color: "green",
+      });
+    }
+    if (hasPermission("bulletins.read")) {
+      items.push({
+        label: "Bulletins validés",
+        value: String(d.nb_bulletins_valides ?? 0),
+        color: "blue",
+      });
+    }
+    if (hasPermission("absences.read")) {
+      items.push({ label: "Absences", value: String(d.nb_absences ?? 0), color: "red" });
+    }
+    if (hasPermission("eleves.write")) {
+      items.push({
+        label: "Inscriptions du jour",
+        value: String(d.inscriptions_jour ?? 0),
+        color: "blue",
+      });
+    }
+    if (hasPermission("paiements.read")) {
+      items.push({
+        label: "Paiements du jour",
+        value: String(d.paiements_jour ?? 0),
+        color: "green",
+      });
+      items.push({
+        label: "Recettes semaine",
+        value: `${Number(d.recettes_semaine ?? 0).toLocaleString("fr-FR")} FCFA`,
+        color: "green",
+      });
+      items.push({
+        label: "Solde caisse",
+        value: `${Number(d.solde_caisse ?? 0).toLocaleString("fr-FR")} FCFA`,
+        color: "blue",
+      });
+    }
+    if (hasPermission("depenses.read")) {
+      items.push({
+        label: "Dépenses semaine",
+        value: `${Number(d.depenses_semaine ?? 0).toLocaleString("fr-FR")} FCFA`,
+        color: "red",
+      });
     }
 
-    if (role === "directeur") {
-      return [
-        {
-          label: "Taux réussite",
-          value: `${Number(d.taux_reussite ?? 0).toFixed(1)} %`,
-          color: "green",
-        },
-        {
-          label: "Bulletins validés",
-          value: String(d.nb_bulletins_valides ?? 0),
-          color: "blue",
-        },
-        { label: "Absences", value: String(d.nb_absences ?? 0), color: "red" },
-      ];
-    }
-
-    if (role === "secretaire") {
-      return [
-        {
-          label: "Inscriptions du jour",
-          value: String(d.inscriptions_jour ?? 0),
-          color: "blue",
-        },
-        {
-          label: "Paiements du jour",
-          value: String(d.paiements_jour ?? 0),
-          color: "green",
-        },
-      ];
-    }
-
-    if (role === "comptable") {
-      return [
-        {
-          label: "Recettes semaine",
-          value: `${Number(d.recettes_semaine ?? 0).toLocaleString("fr-FR")} FCFA`,
-          color: "green",
-        },
-        {
-          label: "Dépenses semaine",
-          value: `${Number(d.depenses_semaine ?? 0).toLocaleString("fr-FR")} FCFA`,
-          color: "red",
-        },
-        {
-          label: "Solde caisse",
-          value: `${Number(d.solde_caisse ?? 0).toLocaleString("fr-FR")} FCFA`,
-          color: "blue",
-        },
-      ];
-    }
-
-    return [];
-  }, [data, role]);
+    return items;
+  }, [data, hasPermission]);
 
   const topClasses = useMemo(() => {
     if (!stats) return [];
@@ -185,13 +191,21 @@ export function TableauBordPage(): React.JSX.Element {
       .map((c) => ({ label: c.nom, value: c.effectif }));
   }, [stats]);
 
+  if (!canViewReporting) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aucun indicateur disponible pour vos permissions actuelles.
+      </p>
+    );
+  }
+
   if (isLoading || !data) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      <KpiGrid items={kpis} />
+      {kpis.length > 0 ? <KpiGrid items={kpis} /> : null}
 
-      {role === "promoteur" ? (
+      {hasPermission("paiements.read") && chartData.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Évolution mensuelle (recettes)</CardTitle>
@@ -202,7 +216,7 @@ export function TableauBordPage(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {role === "directeur" && topClasses.length > 0 ? (
+      {hasPermission("statistiques.read") && topClasses.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Top 5 classes (effectifs)</CardTitle>
@@ -213,7 +227,7 @@ export function TableauBordPage(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {role === "comptable" ? (
+      {hasPermission("depenses.read") && hasPermission("paiements.read") ? (
         <Card>
           <CardHeader>
             <CardTitle>Trésorerie</CardTitle>
@@ -224,19 +238,25 @@ export function TableauBordPage(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {role === "secretaire" ? (
+      {hasPermission("eleves.write") || hasPermission("paiements.write") ? (
         <Card>
           <CardHeader>
             <CardTitle>Actions récentes</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            <p>
-              {Number(data.donnees.inscriptions_jour ?? 0)} inscription(s) et{" "}
-              {Number(data.donnees.paiements_jour ?? 0)} paiement(s) enregistrés aujourd&apos;hui.
-            </p>
-            <p className="mt-2">
-              Consultez le module Impressions pour les documents à générer.
-            </p>
+            {hasPermission("eleves.write") ? (
+              <p>{Number(data.donnees.inscriptions_jour ?? 0)} inscription(s) aujourd&apos;hui.</p>
+            ) : null}
+            {hasPermission("paiements.write") ? (
+              <p className="mt-2">
+                {Number(data.donnees.paiements_jour ?? 0)} paiement(s) enregistrés aujourd&apos;hui.
+              </p>
+            ) : null}
+            {hasPermission("rapports.imprimer") ? (
+              <p className="mt-2">
+                Consultez le module Impressions pour les documents à générer.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

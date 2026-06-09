@@ -1,3 +1,4 @@
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { useAuthStore } from "@/stores/authStore";
 import type { RoleUtilisateur } from "@/types";
 
@@ -20,26 +21,25 @@ interface FinanceAccess {
 
 export function useFinanceAccess(): FinanceAccess {
   const role = useAuthStore((s) => s.user?.role ?? "secretaire");
-
-  const isPromoteur = role === "promoteur";
-  const isComptable = role === "comptable";
-  const isSecretaire = role === "secretaire";
-  const isDirecteur = role === "directeur";
+  const hasPermission = useHasPermission();
 
   return {
     role,
-    canAccessPaiements: isSecretaire || isComptable || isPromoteur,
-    canRegisterPaiements: isSecretaire || isComptable || isPromoteur,
-    canValidatePaiements: isComptable || isPromoteur,
-    canAccessFrais: isDirecteur || isPromoteur,
-    canManageFrais: isDirecteur || isPromoteur,
-    canAccessImpayes: isComptable || isPromoteur,
-    canAccessTransactions: isComptable || isPromoteur,
-    canAccessDepenses: isComptable || isPromoteur,
-    canManageDepenses: isComptable || isPromoteur,
-    canAccessSalaires: isComptable || isPromoteur,
-    canManageSalaires: isComptable || isPromoteur,
-    canAccessCaisse: isComptable || isPromoteur,
-    canAccessTableauBord: isComptable || isPromoteur,
+    canAccessPaiements: hasPermission("paiements.read") || hasPermission("paiements.write"),
+    canRegisterPaiements: hasPermission("paiements.write"),
+    canValidatePaiements: hasPermission("paiements.validate"),
+    canAccessFrais: hasPermission("frais.read") || hasPermission("frais.write"),
+    canManageFrais: hasPermission("frais.write"),
+    canAccessImpayes: hasPermission("paiements.read"),
+    canAccessTransactions: hasPermission("paiements.read"),
+    canAccessDepenses: hasPermission("depenses.read") || hasPermission("depenses.write"),
+    canManageDepenses: hasPermission("depenses.write"),
+    canAccessSalaires: hasPermission("salaires.read") || hasPermission("salaires.write"),
+    canManageSalaires: hasPermission("salaires.write"),
+    canAccessCaisse: hasPermission("paiements.read"),
+    canAccessTableauBord:
+      hasPermission("paiements.read") ||
+      hasPermission("depenses.read") ||
+      hasPermission("statistiques.read"),
   };
 }

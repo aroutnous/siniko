@@ -13,81 +13,86 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { TenantPermissionGuard } from "@/components/auth/TenantPermissionGuard";
 import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useMenuAccess } from "@/hooks/useMenuAccess";
 import { getPostLogoutRoute } from "@/lib/auth-routes";
 import { ROLE_LABELS, ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
-import type { RoleUtilisateur } from "@/types";
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: RoleUtilisateur[];
+  show: boolean;
   end?: boolean;
 }
-
-const TENANT_NAV_ITEMS: NavItem[] = [
-  {
-    to: ROUTES.dashboard,
-    label: "Tableau de bord",
-    icon: LayoutDashboard,
-    roles: ["promoteur", "directeur", "secretaire", "comptable"],
-    end: true,
-  },
-  {
-    to: ROUTES.etablissementAnnees,
-    label: "Établissement",
-    icon: Building2,
-    roles: ["promoteur", "directeur"],
-  },
-  {
-    to: ROUTES.eleves,
-    label: "Élèves",
-    icon: GraduationCap,
-    roles: ["promoteur", "directeur", "secretaire"],
-    end: true,
-  },
-  {
-    to: ROUTES.elevesAbsences,
-    label: "Absences",
-    icon: CalendarX,
-    roles: ["promoteur", "directeur", "secretaire"],
-  },
-  {
-    to: ROUTES.pedagogieNotes,
-    label: "Pédagogie",
-    icon: BookOpen,
-    roles: ["promoteur", "directeur", "secretaire"],
-  },
-  {
-    to: ROUTES.financePaiements,
-    label: "Finance",
-    icon: Wallet,
-    roles: ["promoteur", "directeur", "secretaire", "comptable"],
-  },
-  {
-    to: ROUTES.reportingTableauBord,
-    label: "Reporting",
-    icon: BarChart3,
-    roles: ["promoteur", "directeur", "secretaire", "comptable"],
-  },
-  {
-    to: ROUTES.utilisateurs,
-    label: "Utilisateurs",
-    icon: UserCog,
-    roles: ["promoteur"],
-    end: true,
-  },
-];
 
 export function AppLayout(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, tenant, logout } = useAuthStore();
+  const { user, tenant, logout, permissionsLoaded } = useAuthStore();
+  const menuAccess = useMenuAccess();
   const role = user?.role ?? "secretaire";
-  const visibleNav = TENANT_NAV_ITEMS.filter((item) => item.roles.includes(role));
+  const navReady = permissionsLoaded && user !== null;
+
+  const tenantNavItems: NavItem[] = [
+    {
+      to: ROUTES.dashboard,
+      label: "Tableau de bord",
+      icon: LayoutDashboard,
+      show: true,
+      end: true,
+    },
+    {
+      to: ROUTES.etablissementAnnees,
+      label: "Établissement",
+      icon: Building2,
+      show: menuAccess.showEtablissement,
+    },
+    {
+      to: ROUTES.eleves,
+      label: "Élèves",
+      icon: GraduationCap,
+      show: menuAccess.showEleves,
+      end: true,
+    },
+    {
+      to: ROUTES.elevesAbsences,
+      label: "Absences",
+      icon: CalendarX,
+      show: menuAccess.showAbsences,
+    },
+    {
+      to: ROUTES.pedagogieNotes,
+      label: "Pédagogie",
+      icon: BookOpen,
+      show: menuAccess.showPedagogie,
+    },
+    {
+      to: ROUTES.financePaiements,
+      label: "Finance",
+      icon: Wallet,
+      show: menuAccess.showFinance,
+    },
+    {
+      to: ROUTES.reportingTableauBord,
+      label: "Reporting",
+      icon: BarChart3,
+      show: menuAccess.showReporting,
+    },
+    {
+      to: ROUTES.utilisateurs,
+      label: "Utilisateurs",
+      icon: UserCog,
+      show: menuAccess.showUtilisateurs,
+      end: true,
+    },
+  ];
+
+  const visibleNav = tenantNavItems.filter((item) => item.show);
 
   const handleLogout = async (): Promise<void> => {
     await logout();
@@ -105,24 +110,28 @@ export function AppLayout(): React.JSX.Element {
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
-          {visibleNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-muted",
-                )
-              }
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </NavLink>
-          ))}
+          {!navReady ? (
+            <LoadingSpinner label="Chargement du menu…" />
+          ) : (
+            visibleNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground hover:bg-muted",
+                  )
+                }
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </NavLink>
+            ))
+          )}
         </nav>
         <div className="border-t border-border p-4">
           <div className="mb-3 px-3">
@@ -168,7 +177,9 @@ export function AppLayout(): React.JSX.Element {
           </Button>
         </header>
         <main className="flex-1 overflow-auto p-6">
-          <Outlet key={location.pathname} />
+          <TenantPermissionGuard>
+            <Outlet key={location.pathname} />
+          </TenantPermissionGuard>
         </main>
       </div>
     </div>

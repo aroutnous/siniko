@@ -3,6 +3,7 @@ export const UTILISATEURS_API = {
   create: "/auth/utilisateurs",
   statut: (id: string) => `/auth/utilisateurs/${id}/statut`,
   permissions: (id: string) => `/auth/utilisateurs/${id}/permissions`,
+  myPermissions: "/auth/me/permissions",
   changePassword: "/auth/change-password",
   me: "/auth/me",
 } as const;

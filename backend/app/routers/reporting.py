@@ -35,8 +35,9 @@ def require_reports_read() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.RAPPORTS_READ.value,
-            Permission.STATISTIQUES_READ.value,
+            Permission.RAPPORTS_FINANCIERS.value,
+            Permission.STATISTIQUES_PEDAGOGIE.value,
+            Permission.STATISTIQUES_FINANCE.value,
         ):
             from fastapi import HTTPException
 
@@ -57,7 +58,8 @@ def require_reports_impressions() -> Callable[..., Utilisateur]:
             db,
             current_user,
             Permission.RAPPORTS_IMPRIMER.value,
-            Permission.RAPPORTS_READ.value,
+            Permission.RAPPORTS_FINANCIERS.value,
+            Permission.DOCUMENTS_RAPPORTS.value,
         ):
             from fastapi import HTTPException
 
@@ -77,9 +79,10 @@ def require_reports_dashboard() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.RAPPORTS_READ.value,
+            Permission.RAPPORTS_FINANCIERS.value,
             Permission.RAPPORTS_IMPRIMER.value,
-            Permission.STATISTIQUES_READ.value,
+            Permission.STATISTIQUES_PEDAGOGIE.value,
+            Permission.STATISTIQUES_FINANCE.value,
         ):
             from fastapi import HTTPException
 

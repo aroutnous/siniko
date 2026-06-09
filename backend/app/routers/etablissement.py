@@ -56,8 +56,9 @@ def require_establishment_read() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.CLASSES_READ.value,
-            Permission.CLASSES_WRITE.value,
+            Permission.ETABLISSEMENT_ACCEDER.value,
+            Permission.CLASSES_CONSULTER.value,
+            Permission.CLASSES_GERER.value,
         ):
             from fastapi import HTTPException
 
@@ -72,7 +73,7 @@ def require_establishment_read() -> Callable[..., Utilisateur]:
 
 EstablishmentReader = Annotated[Utilisateur, Depends(require_establishment_read())]
 EstablishmentManager = Annotated[
-    Utilisateur, Depends(require_permission(Permission.CLASSES_WRITE.value))
+    Utilisateur, Depends(require_permission(Permission.CLASSES_GERER.value))
 ]
 
 

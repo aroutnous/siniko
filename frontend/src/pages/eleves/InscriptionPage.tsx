@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,14 +106,7 @@ export function InscriptionPage(): React.JSX.Element {
   };
 
   if (!canManage) {
-    return (
-      <div>
-        <PageHeader title="Inscrire un élève" breadcrumb="Élèves" />
-        <p className="text-sm text-muted-foreground">
-          Vous n&apos;avez pas la permission d&apos;inscrire un élève.
-        </p>
-      </div>
-    );
+    return <Navigate to={ROUTES.dashboard} replace />;
   }
 
   if (loadingClasses || loadingAnnee) {

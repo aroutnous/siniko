@@ -48,10 +48,12 @@ def require_finance_read() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.PAIEMENTS_READ.value,
-            Permission.FRAIS_READ.value,
-            Permission.DEPENSES_READ.value,
-            Permission.SALAIRES_READ.value,
+            Permission.PAIEMENTS_CONSULTER.value,
+            Permission.PAIEMENTS_HISTORIQUE.value,
+            Permission.FRAIS_CONSULTER.value,
+            Permission.DEPENSES_CONSULTER.value,
+            Permission.SALAIRES_CONSULTER.value,
+            Permission.CAISSE_CONSULTER.value,
         ):
             from fastapi import HTTPException
 
@@ -68,7 +70,9 @@ def require_finance_payments() -> Callable[..., Utilisateur]:
     """Enregistrement paiement : finance.payments ou finance.manage."""
 
     async def checker(current_user: CurrentUser, db: DbSession) -> Utilisateur:
-        if not user_has_permission(db, current_user, Permission.PAIEMENTS_WRITE.value):
+        if not user_has_permission(
+            db, current_user, Permission.PAIEMENTS_ENREGISTRER.value
+        ):
             from fastapi import HTTPException
 
             raise HTTPException(
@@ -87,9 +91,10 @@ def require_finance_manage() -> Callable[..., Utilisateur]:
         if not user_has_any_permission(
             db,
             current_user,
-            Permission.FRAIS_WRITE.value,
-            Permission.DEPENSES_WRITE.value,
-            Permission.SALAIRES_WRITE.value,
+            Permission.FRAIS_GERER.value,
+            Permission.DEPENSES_GERER.value,
+            Permission.SALAIRES_GERER.value,
+            Permission.CAISSE_GERER.value,
         ):
             from fastapi import HTTPException
 
@@ -106,7 +111,7 @@ FinanceReader = Annotated[Utilisateur, Depends(require_finance_read())]
 FinancePayments = Annotated[Utilisateur, Depends(require_finance_payments())]
 FinanceManager = Annotated[Utilisateur, Depends(require_finance_manage())]
 PaiementsReader = Annotated[
-    Utilisateur, Depends(require_permission(Permission.PAIEMENTS_READ.value))
+    Utilisateur, Depends(require_permission(Permission.PAIEMENTS_CONSULTER.value))
 ]
 
 
@@ -275,7 +280,10 @@ def get_situation_financiere(
 def get_liste_impayes(
     request: Request,
     db: DbSession,
-    user: Annotated[Utilisateur, Depends(require_permission(Permission.PAIEMENTS_READ.value))],
+    user: Annotated[
+        Utilisateur,
+        Depends(require_permission(Permission.PAIEMENTS_SUIVRE_RETARD.value)),
+    ],
     annee_id: uuid.UUID = Query(...),
 ) -> list[ImpayeResponse]:
     rows = _service(db, user, request).get_liste_impayes(annee_id)
@@ -286,7 +294,10 @@ def get_liste_impayes(
 def get_historique_transactions(
     request: Request,
     db: DbSession,
-    user: Annotated[Utilisateur, Depends(require_permission(Permission.PAIEMENTS_READ.value))],
+    user: Annotated[
+        Utilisateur,
+        Depends(require_permission(Permission.PAIEMENTS_HISTORIQUE.value)),
+    ],
     date_debut: date | None = Query(default=None),
     date_fin: date | None = Query(default=None),
 ) -> list[PaiementResponse]:

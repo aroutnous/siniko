@@ -15,6 +15,7 @@ import {
   type PermissionKey,
 } from "@/lib/permissions";
 import { UTILISATEURS_API } from "@/lib/utilisateurs-api";
+import { useAuthStore } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   RoleUtilisateur,
@@ -46,6 +47,8 @@ export function PermissionsModal({
 }: PermissionsModalProps): React.JSX.Element | null {
   const queryClient = useQueryClient();
   const toast = useToastStore((s) => s.show);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const fetchPermissions = useAuthStore((s) => s.fetchPermissions);
   const [selected, setSelected] = useState<PermissionKey[]>([]);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -87,9 +90,12 @@ export function PermissionsModal({
       );
       return response;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       void queryClient.invalidateQueries({ queryKey: ["utilisateurs", userId, "permissions"] });
       void queryClient.invalidateQueries({ queryKey: ["utilisateurs"] });
+      if (currentUserId === userId) {
+        await fetchPermissions();
+      }
       toast("Permissions enregistrées");
       onClose();
     },

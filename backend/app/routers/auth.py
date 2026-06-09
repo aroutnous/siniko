@@ -33,13 +33,13 @@ from app.services.auth_service import AuthService
 from app.services.permissions import PermissionService
 
 UsersManager = Annotated[
-    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_WRITE.value))
+    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_GERER.value))
 ]
 UsersPermissionsRead = Annotated[
-    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_READ.value))
+    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_CONSULTER.value))
 ]
 UsersPermissionsWrite = Annotated[
-    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_WRITE.value))
+    Utilisateur, Depends(require_permission(Permission.UTILISATEURS_GERER.value))
 ]
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -156,6 +156,22 @@ def get_me(
 ) -> UserProfile:
     """Profil de l'utilisateur authentifié."""
     return AuthService(db).get_current_user_profile(current_user)
+
+
+@router.get("/me/permissions", response_model=UtilisateurPermissionsResponse)
+def get_my_permissions(
+    current_user: CurrentUser,
+    db: DbSession,
+) -> UtilisateurPermissionsResponse:
+    """Permissions de l'utilisateur connecté (sans exiger utilisateurs.read)."""
+    permissions = PermissionService(db).get_permissions(
+        current_user.id,
+        current_user.tenant_id,
+    )
+    return UtilisateurPermissionsResponse(
+        utilisateur_id=current_user.id,
+        permissions=permissions,
+    )
 
 
 @router.get("/utilisateurs", response_model=list[UtilisateurListItem])
