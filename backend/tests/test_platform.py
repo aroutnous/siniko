@@ -307,7 +307,7 @@ async def test_modifier_tenant(
 
 
 @pytest.mark.asyncio
-async def test_supprimer_tenant_abonnement_actif(
+async def test_supprimer_tenant_avec_abonnement_actif(
     async_client: AsyncClient,
     platform_headers: dict[str, str],
     plan_abonnement: PlanAbonnement,
@@ -315,7 +315,7 @@ async def test_supprimer_tenant_abonnement_actif(
     create = await async_client.post(
         "/platform/tenants",
         json={
-            "nom": "École Delete Block",
+            "nom": "École Delete Force",
             "email": "del@ecole.ml",
             "plan_id": str(plan_abonnement.id),
             "promoteur_email": "pd@ecole.ml",
@@ -330,7 +330,56 @@ async def test_supprimer_tenant_abonnement_actif(
         f"/platform/tenants/{tenant_id}",
         headers=platform_headers,
     )
-    assert response.status_code == 409
+    assert response.status_code == 204
+
+    liste = await async_client.get("/platform/tenants", headers=platform_headers)
+    ids = [t["id"] for t in liste.json()]
+    assert tenant_id not in ids
+
+
+@pytest.mark.asyncio
+async def test_modifier_plan(
+    async_client: AsyncClient,
+    platform_headers: dict[str, str],
+    plan_abonnement: PlanAbonnement,
+) -> None:
+    response = await async_client.put(
+        f"/platform/plans/{plan_abonnement.id}",
+        json={
+            "nom": "Standard Plus",
+            "prix_mensuel": "30000",
+            "max_eleves": 600,
+        },
+        headers=platform_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["nom"] == "Standard Plus"
+    assert float(data["prix_mensuel"]) == 30000.0
+    assert data["max_eleves"] == 600
+
+
+@pytest.mark.asyncio
+async def test_supprimer_plan(
+    async_client: AsyncClient,
+    platform_headers: dict[str, str],
+) -> None:
+    create = await async_client.post(
+        "/platform/plans",
+        json={
+            "nom": "Plan à supprimer",
+            "prix_mensuel": "10000",
+            "max_eleves": 50,
+        },
+        headers=platform_headers,
+    )
+    plan_id = create.json()["id"]
+
+    response = await async_client.delete(
+        f"/platform/plans/{plan_id}",
+        headers=platform_headers,
+    )
+    assert response.status_code == 204
 
 
 @pytest.mark.asyncio

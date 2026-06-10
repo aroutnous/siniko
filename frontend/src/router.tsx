@@ -39,9 +39,13 @@ import { BulletinsPage } from "@/pages/pedagogie/BulletinsPage";
 import { HistoriqueNotesPage } from "@/pages/pedagogie/HistoriqueNotesPage";
 import { ResultatsClassePage } from "@/pages/pedagogie/ResultatsClassePage";
 import { SaisieNotesPage } from "@/pages/pedagogie/SaisieNotesPage";
+import { AbonnementsPage } from "@/pages/platform/AbonnementsPage";
 import { AuditLogsPage } from "@/pages/platform/AuditLogsPage";
+import { FacturationPage } from "@/pages/platform/FacturationPage";
+import { NotificationsPage } from "@/pages/platform/NotificationsPage";
 import { PlansPage } from "@/pages/platform/PlansPage";
 import { PlatformDashboardPage } from "@/pages/platform/PlatformDashboardPage";
+import { StatistiquesPage } from "@/pages/platform/StatistiquesPage";
 import { TenantCreatePage } from "@/pages/platform/TenantCreatePage";
 import { TenantUtilisateursPage } from "@/pages/platform/TenantUtilisateursPage";
 import { TenantsListPage } from "@/pages/platform/TenantsListPage";
@@ -217,6 +221,10 @@ export const router = createBrowserRouter([
             path: "tenants/:tenantId/utilisateurs",
             element: <TenantUtilisateursPage />,
           },
+          { path: "abonnements", element: <AbonnementsPage /> },
+          { path: "facturation", element: <FacturationPage /> },
+          { path: "notifications", element: <NotificationsPage /> },
+          { path: "statistiques", element: <StatistiquesPage /> },
           { path: "plans", element: <PlansPage /> },
           { path: "audit", element: <AuditLogsPage /> },
           { path: "profil", element: <ProfilPage /> },

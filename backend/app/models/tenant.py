@@ -105,6 +105,12 @@ class NotificationPlateforme(BaseModel):
         nullable=True,
         index=True,
     )
+    emetteur_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("utilisateurs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     titre: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[TypeNotification] = mapped_column(

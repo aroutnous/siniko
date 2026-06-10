@@ -95,6 +95,7 @@ class StatutAbonnement(str, enum.Enum):
     ACTIF = "actif"
     SUSPENDU = "suspendu"
     EXPIRE = "expire"
+    RESILIE = "resilie"
 
 
 class StatutFacture(str, enum.Enum):

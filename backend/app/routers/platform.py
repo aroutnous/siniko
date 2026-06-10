@@ -11,14 +11,25 @@ from app.core.security import require_permission
 from app.models.auth import Utilisateur
 from app.models.enums import Permission, StatutTenant
 from app.schemas.platform import (
+    AbonnementChangePlan,
+    AbonnementCreate,
+    AbonnementDetailResponse,
+    AbonnementRenouveler,
     AbonnementResponse,
     AuditLogResponse,
-    FactureResponse,
+    DashboardStatsResponse,
+    FactureCreate,
+    FactureDetailResponse,
+    NotificationCreate,
+    NotificationDetailResponse,
     NotificationPlateformeCreate,
     PlanCreate,
     PlanResponse,
+    PlanUpdate,
     PlatformStatsResponse,
     ResetPasswordResponse,
+    RevenusParMoisResponse,
+    StatistiquesPlateformeResponse,
     TenantCreate,
     TenantCreateResponse,
     TenantResponse,
@@ -60,6 +71,24 @@ def get_stats_plateforme(
     user: PlatformAdmin,
 ) -> PlatformStatsResponse:
     return _service(db, user, request).get_stats_plateforme()
+
+
+@router.get("/dashboard", response_model=DashboardStatsResponse)
+def get_dashboard(
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> DashboardStatsResponse:
+    return _service(db, user, request).get_dashboard_stats()
+
+
+@router.get("/statistiques", response_model=StatistiquesPlateformeResponse)
+def get_statistiques(
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> StatistiquesPlateformeResponse:
+    return _service(db, user, request).get_statistiques_plateforme()
 
 
 @router.get("/tenants", response_model=list[TenantResponse])
@@ -150,26 +179,161 @@ def creer_plan(
     return _service(db, user, request).creer_plan(body)
 
 
-@router.get("/abonnements", response_model=list[AbonnementResponse])
-def list_abonnements(
+@router.put("/plans/{plan_id}", response_model=PlanResponse)
+def modifier_plan(
+    plan_id: uuid.UUID,
+    body: PlanUpdate,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> PlanResponse:
+    return _service(db, user, request).modifier_plan(plan_id, body)
+
+
+@router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+def supprimer_plan(
+    plan_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> None:
+    _service(db, user, request).supprimer_plan(plan_id)
+
+
+@router.get("/abonnements", response_model=list[AbonnementDetailResponse])
+def list_abonnements_detail(
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> list[AbonnementDetailResponse]:
+    return _service(db, user, request).get_abonnements_detail()
+
+
+@router.post(
+    "/abonnements",
+    response_model=AbonnementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def creer_abonnement(
+    body: AbonnementCreate,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> AbonnementResponse:
+    return _service(db, user, request).creer_abonnement(body)
+
+
+@router.put("/abonnements/{abonnement_id}/renouveler", response_model=AbonnementResponse)
+def renouveler_abonnement(
+    abonnement_id: uuid.UUID,
+    body: AbonnementRenouveler,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> AbonnementResponse:
+    return _service(db, user, request).renouveler_abonnement(abonnement_id, body)
+
+
+@router.put(
+    "/abonnements/{abonnement_id}/changer-plan",
+    response_model=AbonnementResponse,
+)
+def changer_plan_abonnement(
+    abonnement_id: uuid.UUID,
+    body: AbonnementChangePlan,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> AbonnementResponse:
+    return _service(db, user, request).changer_plan(abonnement_id, body)
+
+
+@router.put("/abonnements/{abonnement_id}/resilier", response_model=AbonnementResponse)
+def resilier_abonnement(
+    abonnement_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> AbonnementResponse:
+    return _service(db, user, request).resilier_abonnement(abonnement_id)
+
+
+@router.get("/factures/revenus", response_model=RevenusParMoisResponse)
+def get_revenus_par_mois(
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+    annee: int = Query(default_factory=lambda: date.today().year, ge=2000, le=2100),
+) -> RevenusParMoisResponse:
+    return _service(db, user, request).get_revenus_par_mois(annee)
+
+
+@router.get("/factures", response_model=list[FactureDetailResponse])
+def list_factures_detail(
     request: Request,
     db: DbSession,
     user: PlatformAdmin,
     tenant_id: uuid.UUID | None = Query(default=None),
-) -> list[AbonnementResponse]:
-    abonnements = _service(db, user, request).get_abonnements(tenant_id)
-    return [AbonnementResponse.model_validate(a) for a in abonnements]
+) -> list[FactureDetailResponse]:
+    return _service(db, user, request).get_factures_detail(tenant_id)
 
 
-@router.get("/factures", response_model=list[FactureResponse])
-def list_factures(
+@router.post(
+    "/factures",
+    response_model=FactureDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generer_facture(
+    body: FactureCreate,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> FactureDetailResponse:
+    return _service(db, user, request).generer_facture(body)
+
+
+@router.put("/factures/{facture_id}/payer", response_model=FactureDetailResponse)
+def marquer_facture_payee(
+    facture_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> FactureDetailResponse:
+    return _service(db, user, request).marquer_facture_payee(facture_id)
+
+
+@router.post("/notifications/tous", status_code=status.HTTP_201_CREATED)
+def envoyer_notification_tous(
+    body: NotificationCreate,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> dict[str, str]:
+    return _service(db, user, request).envoyer_notification_tous(body)
+
+
+@router.post(
+    "/notifications/tenant/{tenant_id}",
+    status_code=status.HTTP_201_CREATED,
+)
+def envoyer_notification_tenant(
+    tenant_id: uuid.UUID,
+    body: NotificationCreate,
+    request: Request,
+    db: DbSession,
+    user: PlatformAdmin,
+) -> dict[str, str]:
+    return _service(db, user, request).envoyer_notification_tenant(tenant_id, body)
+
+
+@router.get("/notifications", response_model=list[NotificationDetailResponse])
+def list_notifications(
     request: Request,
     db: DbSession,
     user: PlatformAdmin,
     tenant_id: uuid.UUID | None = Query(default=None),
-) -> list[FactureResponse]:
-    factures = _service(db, user, request).get_factures(tenant_id)
-    return [FactureResponse.model_validate(f) for f in factures]
+) -> list[NotificationDetailResponse]:
+    return _service(db, user, request).get_notifications(tenant_id)
 
 
 @router.post("/notifications", status_code=status.HTTP_201_CREATED)
@@ -191,12 +355,14 @@ def get_audit_logs_global(
     date_fin: date | None = Query(default=None),
     action: str | None = Query(default=None),
     tenant_id: uuid.UUID | None = Query(default=None),
+    utilisateur_id: uuid.UUID | None = Query(default=None),
 ) -> list[AuditLogResponse]:
     filtre = {
         "date_debut": date_debut,
         "date_fin": date_fin,
         "action": action,
         "tenant_id": tenant_id,
+        "utilisateur_id": utilisateur_id,
     }
     logs = _service(db, user, request).get_audit_logs_global(filtre)
     return [AuditLogResponse.model_validate(log) for log in logs]

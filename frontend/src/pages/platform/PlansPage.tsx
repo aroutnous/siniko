@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
@@ -6,9 +7,13 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, getErrorMessage } from "@/lib/api";
+import { PLATFORM_API } from "@/lib/platform-api";
+import { PlanEditModal } from "@/pages/platform/PlanEditModal";
+import { useToastStore } from "@/stores/toastStore";
 import type { PlanAbonnement, PlanCreatePayload } from "@/types";
 
 interface PlanForm {
@@ -27,28 +32,44 @@ const INITIAL: PlanForm = {
 
 export function PlansPage(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const toast = useToastStore((s) => s.show);
   const [form, setForm] = useState<PlanForm>(INITIAL);
   const [error, setError] = useState<string | null>(null);
+  const [editPlan, setEditPlan] = useState<PlanAbonnement | null>(null);
+  const [deletePlan, setDeletePlan] = useState<PlanAbonnement | null>(null);
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["platform-plans"],
     queryFn: async () => {
-      const { data } = await api.get<PlanAbonnement[]>("/platform/plans");
+      const { data } = await api.get<PlanAbonnement[]>(PLATFORM_API.plans);
       return data;
     },
   });
 
-  const mutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: async (payload: PlanCreatePayload) => {
-      const { data } = await api.post<PlanAbonnement>("/platform/plans", payload);
+      const { data } = await api.post<PlanAbonnement>(PLATFORM_API.plans, payload);
       return data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["platform-plans"] });
       setForm(INITIAL);
       setError(null);
+      toast("Plan créé");
     },
     onError: (err) => setError(getErrorMessage(err)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      await api.delete(PLATFORM_API.plan(planId));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["platform-plans"] });
+      toast("Plan supprimé");
+      setDeletePlan(null);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
   });
 
   const columns: DataTableColumn<PlanAbonnement>[] = [
@@ -73,6 +94,32 @@ export function PlansPage(): React.JSX.Element {
       header: "Actif",
       render: (r) => (r.est_actif ? "Oui" : "Non"),
     },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (r) => (
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            title="Modifier"
+            onClick={() => setEditPlan(r)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            title="Supprimer"
+            onClick={() => setDeletePlan(r)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   const handleSubmit = (e: React.FormEvent): void => {
@@ -84,7 +131,7 @@ export function PlansPage(): React.JSX.Element {
     };
     if (form.max_eleves) payload.max_eleves = Number(form.max_eleves);
     if (form.max_utilisateurs) payload.max_utilisateurs = Number(form.max_utilisateurs);
-    mutation.mutate(payload);
+    createMutation.mutate(payload);
   };
 
   return (
@@ -147,8 +194,8 @@ export function PlansPage(): React.JSX.Element {
               </p>
             ) : null}
             <div className="sm:col-span-2">
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? "Création…" : "Créer le plan"}
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Création…" : "Créer le plan"}
               </Button>
             </div>
           </form>
@@ -168,6 +215,37 @@ export function PlansPage(): React.JSX.Element {
           emptyMessage="Aucun plan configuré"
         />
       )}
+
+      <PlanEditModal
+        open={editPlan !== null}
+        plan={editPlan}
+        onClose={() => setEditPlan(null)}
+        onSaved={() => {
+          void queryClient.invalidateQueries({ queryKey: ["platform-plans"] });
+        }}
+      />
+
+      <Dialog open={deletePlan !== null} onClose={() => setDeletePlan(null)}>
+        <h2 className="mb-2 pr-8 text-lg font-semibold">Confirmer la suppression</h2>
+        <p className="text-sm text-muted-foreground">
+          Supprimer le plan {deletePlan?.nom} ? Les abonnements associés seront également
+          supprimés. Cette action est irréversible.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setDeletePlan(null)}>
+            Annuler
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteMutation.isPending}
+            onClick={() => {
+              if (deletePlan) deleteMutation.mutate(deletePlan.id);
+            }}
+          >
+            {deleteMutation.isPending ? "Suppression…" : "Supprimer"}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

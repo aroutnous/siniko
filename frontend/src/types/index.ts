@@ -520,6 +520,124 @@ export interface PlatformStats {
   revenus_mois: number;
 }
 
+export interface AbonnementExpirantItem {
+  abonnement_id: string;
+  tenant_id: string;
+  tenant_nom: string;
+  plan_nom: string;
+  date_fin: string;
+}
+
+export interface TenantSansPaiementItem {
+  tenant_id: string;
+  tenant_nom: string;
+  jours_sans_paiement: number;
+}
+
+export interface DashboardStats {
+  nb_tenants_actifs: number;
+  nb_tenants_suspendus: number;
+  nb_eleves_total: number;
+  nb_utilisateurs_total: number;
+  revenus_mois_courant: number;
+  revenus_mois_precedent: number;
+  nouveaux_tenants_mois: number;
+  abonnements_expirant_7j: AbonnementExpirantItem[];
+  tenants_sans_paiement: TenantSansPaiementItem[];
+}
+
+export type StatutAbonnement = "actif" | "suspendu" | "expire" | "resilie";
+
+export interface AbonnementDetail {
+  id: string;
+  tenant_id: string;
+  tenant_nom: string;
+  plan_id: string;
+  plan_nom: string;
+  date_debut: string;
+  date_fin: string | null;
+  statut: StatutAbonnement;
+  montant: number;
+}
+
+export interface AbonnementCreatePayload {
+  tenant_id: string;
+  plan_id: string;
+  duree_mois: number;
+}
+
+export type StatutFactureTenant = "payee" | "impayee" | "annulee";
+
+export interface FactureDetail {
+  id: string;
+  tenant_id: string;
+  tenant_nom: string;
+  abonnement_id: string;
+  montant: number;
+  description: string;
+  statut: StatutFactureTenant;
+  date_echeance: string;
+  date_paiement: string | null;
+  created_at: string;
+}
+
+export interface FactureCreatePayload {
+  tenant_id: string;
+  montant: string;
+  description: string;
+}
+
+export interface RevenusMoisItem {
+  mois: number;
+  revenus: number;
+  nb_factures: number;
+}
+
+export interface RevenusParMois {
+  annee: number;
+  mois: RevenusMoisItem[];
+  total_annuel: number;
+}
+
+export interface NotificationDetail {
+  id: string;
+  tenant_id: string | null;
+  cible: string;
+  tenant_nom: string | null;
+  titre: string;
+  message: string;
+  emetteur_id: string | null;
+  emetteur_nom: string | null;
+  created_at: string;
+}
+
+export interface NotificationCreatePayload {
+  titre: string;
+  message: string;
+}
+
+export interface RepartitionPlanItem {
+  plan: string;
+  nb_tenants: number;
+}
+
+export interface EvolutionInscriptionItem {
+  mois: string;
+  nb: number;
+}
+
+export interface TopTenantItem {
+  tenant: string;
+  nb_eleves: number;
+}
+
+export interface StatistiquesPlateforme {
+  repartition_par_plan: RepartitionPlanItem[];
+  evolution_inscriptions: EvolutionInscriptionItem[];
+  top_tenants_actifs: TopTenantItem[];
+  taux_utilisation_modules: Record<string, number>;
+}
+
 export interface PlanAbonnement {
   id: string;
   nom: string;
@@ -565,6 +683,14 @@ export interface TenantCreateResponse {
 export interface PlanCreatePayload {
   nom: string;
   prix_mensuel: string;
+  max_eleves?: number;
+  max_utilisateurs?: number;
+  fonctionnalites?: Record<string, boolean | string | number>;
+}
+
+export interface PlanUpdatePayload {
+  nom?: string;
+  prix_mensuel?: string;
   max_eleves?: number;
   max_utilisateurs?: number;
   fonctionnalites?: Record<string, boolean | string | number>;

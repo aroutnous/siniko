@@ -1,9 +1,13 @@
 import {
+  BarChart3,
+  Bell,
   Building2,
   ClipboardList,
   CreditCard,
+  FileText,
   LayoutDashboard,
   LogOut,
+  Receipt,
   Shield,
   User,
 } from "lucide-react";
@@ -18,7 +22,11 @@ import { useAuthStore } from "@/stores/authStore";
 const PLATFORM_NAV_ITEMS = [
   { to: ROUTES.platformDashboard, label: "Dashboard", icon: LayoutDashboard },
   { to: ROUTES.platformTenants, label: "Tenants", icon: Building2 },
-  { to: ROUTES.platformPlans, label: "Plans", icon: CreditCard },
+  { to: ROUTES.platformAbonnements, label: "Abonnements", icon: CreditCard },
+  { to: ROUTES.platformFacturation, label: "Facturation", icon: Receipt },
+  { to: ROUTES.platformNotifications, label: "Notifications", icon: Bell },
+  { to: ROUTES.platformStatistiques, label: "Statistiques", icon: BarChart3 },
+  { to: ROUTES.platformPlans, label: "Plans", icon: FileText },
   { to: ROUTES.platformAudit, label: "Audit", icon: ClipboardList },
 ] as const;
 
@@ -41,7 +49,7 @@ export function PlatformSidebar(): React.JSX.Element {
           <p className="text-xs text-muted-foreground">Administration plateforme</p>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {PLATFORM_NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}

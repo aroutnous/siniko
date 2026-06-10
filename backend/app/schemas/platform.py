@@ -85,6 +85,14 @@ class PlanCreate(BaseModel):
     fonctionnalites: dict[str, Any] = Field(default_factory=dict)
 
 
+class PlanUpdate(BaseModel):
+    nom: str | None = Field(default=None, min_length=1, max_length=255)
+    prix_mensuel: Decimal | None = Field(default=None, gt=0)
+    max_eleves: int | None = Field(default=None, ge=1)
+    max_utilisateurs: int | None = Field(default=None, ge=1)
+    fonctionnalites: dict[str, Any] | None = None
+
+
 class PlanResponse(BaseModel):
     id: uuid.UUID
     nom: str
@@ -170,6 +178,128 @@ class PlatformStatsResponse(BaseModel):
     nb_eleves_total: int
     nb_utilisateurs_total: int
     revenus_mois: Decimal
+
+
+class AbonnementExpirantItem(BaseModel):
+    abonnement_id: uuid.UUID
+    tenant_id: uuid.UUID
+    tenant_nom: str
+    plan_nom: str
+    date_fin: date
+
+
+class TenantSansPaiementItem(BaseModel):
+    tenant_id: uuid.UUID
+    tenant_nom: str
+    jours_sans_paiement: int
+
+
+class DashboardStatsResponse(BaseModel):
+    nb_tenants_actifs: int
+    nb_tenants_suspendus: int
+    nb_eleves_total: int
+    nb_utilisateurs_total: int
+    revenus_mois_courant: Decimal
+    revenus_mois_precedent: Decimal
+    nouveaux_tenants_mois: int
+    abonnements_expirant_7j: list[AbonnementExpirantItem]
+    tenants_sans_paiement: list[TenantSansPaiementItem]
+
+
+class AbonnementDetailResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    tenant_nom: str
+    plan_id: uuid.UUID
+    plan_nom: str
+    date_debut: date
+    date_fin: date | None
+    statut: StatutAbonnement
+    montant: Decimal
+
+
+class AbonnementCreate(BaseModel):
+    tenant_id: uuid.UUID
+    plan_id: uuid.UUID
+    duree_mois: int = Field(..., ge=1, le=60)
+
+
+class AbonnementRenouveler(BaseModel):
+    duree_mois: int = Field(..., ge=1, le=60)
+
+
+class AbonnementChangePlan(BaseModel):
+    nouveau_plan_id: uuid.UUID
+
+
+class FactureCreate(BaseModel):
+    tenant_id: uuid.UUID
+    montant: Decimal = Field(..., gt=0)
+    description: str = Field(..., min_length=1, max_length=255)
+
+
+class FactureDetailResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    tenant_nom: str
+    abonnement_id: uuid.UUID
+    montant: Decimal
+    description: str
+    statut: StatutFacture
+    date_echeance: date
+    date_paiement: date | None
+    created_at: datetime
+
+
+class RevenusMoisItem(BaseModel):
+    mois: int
+    revenus: Decimal
+    nb_factures: int
+
+
+class RevenusParMoisResponse(BaseModel):
+    annee: int
+    mois: list[RevenusMoisItem]
+    total_annuel: Decimal
+
+
+class NotificationCreate(BaseModel):
+    titre: str = Field(..., min_length=1, max_length=255)
+    message: str = Field(..., min_length=1)
+
+
+class NotificationDetailResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None
+    cible: str
+    tenant_nom: str | None
+    titre: str
+    message: str
+    emetteur_id: uuid.UUID | None
+    emetteur_nom: str | None
+    created_at: datetime
+
+
+class RepartitionPlanItem(BaseModel):
+    plan: str
+    nb_tenants: int
+
+
+class EvolutionInscriptionItem(BaseModel):
+    mois: str
+    nb: int
+
+
+class TopTenantItem(BaseModel):
+    tenant: str
+    nb_eleves: int
+
+
+class StatistiquesPlateformeResponse(BaseModel):
+    repartition_par_plan: list[RepartitionPlanItem]
+    evolution_inscriptions: list[EvolutionInscriptionItem]
+    top_tenants_actifs: list[TopTenantItem]
+    taux_utilisation_modules: dict[str, int]
 
 
 class AuditLogResponse(BaseModel):
