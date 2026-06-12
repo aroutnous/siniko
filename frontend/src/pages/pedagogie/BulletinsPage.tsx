@@ -17,7 +17,8 @@ import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
 import { useToastStore } from "@/stores/toastStore";
-import type { Bulletin, Classe, Eleve, Periode, StatutBulletin } from "@/types";
+import { formatStatutCompetence } from "@/lib/pedagogie-utils";
+import type { Bulletin, Classe, Eleve, Matiere, Periode, StatutBulletin } from "@/types";
 
 const STATUT_LABELS: Record<StatutBulletin, string> = {
   brouillon: "Brouillon",
@@ -49,6 +50,19 @@ export function BulletinsPage(): React.JSX.Element {
       return data;
     },
   });
+
+  const { data: matieres = [] } = useQuery({
+    queryKey: ["matieres"],
+    queryFn: async () => {
+      const { data } = await api.get<Matiere[]>(ETABLISSEMENT_API.matieres);
+      return data;
+    },
+  });
+
+  const matieresMap = useMemo(
+    () => new Map(matieres.map((m) => [m.id, m.nom])),
+    [matieres],
+  );
 
   const { data: periodes = [] } = useQuery({
     queryKey: ["periodes"],
@@ -159,19 +173,45 @@ export function BulletinsPage(): React.JSX.Element {
     eleve_nom: eleveMap.get(b.eleve_id) ?? b.eleve_id,
   }));
 
+  const isCompetences =
+    bulletins.length > 0 && bulletins[0]?.type_bulletin === "competences";
+
   const columns: DataTableColumn<BulletinRow>[] = [
     { key: "eleve", header: "Élève", render: (r) => r.eleve_nom },
-    {
-      key: "moyenne",
-      header: "Moyenne",
-      render: (r) => r.moyenne_generale?.toFixed(2) ?? "—",
-    },
-    { key: "rang", header: "Rang", render: (r) => r.rang ?? "—" },
-    {
-      key: "mention",
-      header: "Mention",
-      render: (r) => <MentionBadge mention={r.mention} />,
-    },
+    ...(isCompetences
+      ? [
+          {
+            key: "competences",
+            header: "Compétences",
+            render: (r: BulletinRow) => {
+              const lignes = r.lignes ?? [];
+              if (lignes.length === 0) return "—";
+              return lignes
+                .map(
+                  (l) =>
+                    `${matieresMap.get(l.matiere_id) ?? "Domaine"} : ${formatStatutCompetence(l.statut_competence)}`,
+                )
+                .join(" · ");
+            },
+          },
+        ]
+      : [
+          {
+            key: "moyenne",
+            header: "Moyenne",
+            render: (r: BulletinRow) => r.moyenne_generale?.toFixed(2) ?? "—",
+          },
+          {
+            key: "rang",
+            header: "Rang",
+            render: (r: BulletinRow) => r.rang ?? "—",
+          },
+          {
+            key: "mention",
+            header: "Mention",
+            render: (r: BulletinRow) => <MentionBadge mention={r.mention} />,
+          },
+        ]),
     {
       key: "statut",
       header: "Statut",
@@ -316,6 +356,7 @@ export function BulletinsPage(): React.JSX.Element {
                 key={row.id}
                 eleveNom={row.eleve_nom}
                 bulletin={row}
+                matieresMap={matieresMap}
                 canValidate={canValidateBulletins}
                 canPublish={canPublishBulletins}
                 loading={actionId === row.id}

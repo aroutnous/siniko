@@ -240,12 +240,31 @@ export interface AnneeScolaire {
   est_active: boolean;
 }
 
+export type TypeEvaluation = "chiffree" | "qualitative";
+export type TypeBulletin = "chiffre" | "competences";
+
 export interface Cycle {
   id: string;
   tenant_id: string;
   nom: string;
   description: string | null;
   ordre: number;
+  type_evaluation: TypeEvaluation;
+  note_max: number | null;
+  note_passage: number | null;
+  arrondi: number | null;
+  valeur_systeme_ref: string | null;
+}
+
+export interface CycleUpdatePayload {
+  nom?: string;
+  description?: string | null;
+  ordre?: number;
+  type_evaluation?: TypeEvaluation;
+  note_max?: number | null;
+  note_passage?: number | null;
+  arrondi?: number | null;
+  valeur_systeme_ref?: string | null;
 }
 
 /** @deprecated Utiliser `ClasseNiveau`. */
@@ -268,14 +287,7 @@ export interface Matiere {
   nom: string;
   coefficient: number;
   est_active: boolean;
-}
-
-export interface ConfigNotation {
-  id: string;
-  tenant_id: string;
-  note_max: number;
-  note_passage: number;
-  arrondi: number;
+  est_domaine_competence?: boolean;
 }
 
 export interface SalleEffectif {
@@ -292,7 +304,7 @@ export interface ValeurSysteme {
   id: string;
   categorie: string;
   valeur: string;
-  metadata_json: Record<string, string>;
+  metadata_json: Record<string, string | number | null | boolean>;
   ordre: number;
   actif: boolean;
 }
@@ -320,12 +332,6 @@ export interface WizardMatiereItem {
   coefficient: number;
 }
 
-export interface WizardConfigNotation {
-  note_max: number;
-  note_passage: number;
-  arrondi: number;
-}
-
 export interface WizardEtablissementData {
   annee_scolaire: string;
   periodes: WizardPeriodeItem[];
@@ -333,7 +339,6 @@ export interface WizardEtablissementData {
   classes_selectionnees: WizardClasseItem[];
   salles: WizardSalleItem[];
   matieres: WizardMatiereItem[];
-  config_notation: WizardConfigNotation;
 }
 
 export interface WizardEtablissementResponse {
@@ -375,7 +380,8 @@ export interface Note {
   matiere_id: string;
   periode_id: string;
   classe_id: string;
-  valeur: number;
+  valeur: number | null;
+  valeur_qualitative: string | null;
   appreciation: string | null;
   saisi_par?: string | null;
   created_at?: string;
@@ -387,8 +393,20 @@ export interface NoteCreatePayload {
   matiere_id: string;
   periode_id: string;
   classe_id: string;
-  valeur: number;
+  valeur?: number;
+  valeur_qualitative?: string;
   appreciation?: string;
+}
+
+export interface BulletinLigne {
+  id: string;
+  bulletin_id: string;
+  matiere_id: string;
+  note: number | null;
+  moyenne_classe: number | null;
+  coefficient: number | null;
+  statut_competence: string | null;
+  appreciation: string | null;
 }
 
 export interface Bulletin {
@@ -402,11 +420,13 @@ export interface Bulletin {
   effectif_classe: number | null;
   mention: string | null;
   appreciation_generale: string | null;
+  type_bulletin: TypeBulletin;
   statut: StatutBulletin;
   valide_par: string | null;
   date_validation: string | null;
   created_at: string;
   updated_at: string | null;
+  lignes?: BulletinLigne[];
 }
 
 export interface ClassementEleve {
@@ -425,6 +445,7 @@ export interface ResultatsClasse {
   classe_id: string;
   periode_id: string;
   effectif: number;
+  type_evaluation: TypeEvaluation;
   moyennes_par_matiere: MoyenneMatiere[];
   classement: ClassementEleve[];
   taux_reussite: number;

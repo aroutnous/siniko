@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
+import { formatStatutCompetence } from "@/lib/pedagogie-utils";
 import type { Eleve, Matiere, Note, Periode } from "@/types";
 
 interface HistoriqueRow extends Note {
@@ -89,7 +90,16 @@ export function HistoriqueNotesPage(): React.JSX.Element {
 
   const columns: DataTableColumn<HistoriqueRow>[] = [
     { key: "matiere", header: "Matière", render: (r) => r.matiere_nom },
-    { key: "note", header: "Note", render: (r) => Number(r.valeur).toFixed(2) },
+    {
+      key: "note",
+      header: "Note / Statut",
+      render: (r) =>
+        r.valeur_qualitative
+          ? formatStatutCompetence(r.valeur_qualitative)
+          : r.valeur != null
+            ? Number(r.valeur).toFixed(2)
+            : "—",
+    },
     {
       key: "moyenne_classe",
       header: "Moy. classe",

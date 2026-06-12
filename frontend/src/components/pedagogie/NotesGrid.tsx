@@ -1,8 +1,11 @@
 import { Input } from "@/components/ui/input";
-import type { Eleve, Matiere } from "@/types";
+import { Select } from "@/components/ui/select";
+import { STATUT_COMPETENCE_OPTIONS } from "@/lib/pedagogie-utils";
+import type { Eleve, Matiere, TypeEvaluation } from "@/types";
 
 export interface NoteCellValue {
   valeur: string;
+  valeur_qualitative: string;
   appreciation: string;
   noteId?: string;
 }
@@ -17,6 +20,8 @@ interface NotesGridProps {
   eleves: Eleve[];
   matieres: Matiere[];
   values: NotesGridState;
+  typeEvaluation: TypeEvaluation;
+  noteMax: number;
   notePassage: number;
   readOnly?: boolean;
   onChange: (key: string, field: keyof NoteCellValue, value: string) => void;
@@ -26,6 +31,8 @@ export function NotesGrid({
   eleves,
   matieres,
   values,
+  typeEvaluation,
+  noteMax,
   notePassage,
   readOnly = false,
   onChange,
@@ -37,6 +44,8 @@ export function NotesGrid({
       </p>
     );
   }
+
+  const isQualitative = typeEvaluation === "qualitative";
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -57,7 +66,9 @@ export function NotesGrid({
             {matieres.map((m) => (
               <th key={`${m.id}-sub`} colSpan={2} className="border-l border-border">
                 <div className="grid grid-cols-2">
-                  <span className="px-2 py-1 text-center">Note</span>
+                  <span className="px-2 py-1 text-center">
+                    {isQualitative ? "Statut" : "Note"}
+                  </span>
                   <span className="px-2 py-1 text-center">Appréciation</span>
                 </div>
               </th>
@@ -72,23 +83,49 @@ export function NotesGrid({
               </td>
               {matieres.map((matiere) => {
                 const key = cellKey(eleve.id, matiere.id);
-                const cell = values[key] ?? { valeur: "", appreciation: "" };
+                const cell = values[key] ?? {
+                  valeur: "",
+                  valeur_qualitative: "",
+                  appreciation: "",
+                };
                 const num = cell.valeur !== "" ? Number(cell.valeur) : null;
-                const belowPassage = num !== null && !Number.isNaN(num) && num < notePassage;
+                const belowPassage =
+                  !isQualitative &&
+                  num !== null &&
+                  !Number.isNaN(num) &&
+                  num < notePassage;
 
                 return (
                   <td key={matiere.id} colSpan={2} className="border-l border-border p-1">
                     <div className="grid grid-cols-2 gap-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={20}
-                        step={0.25}
-                        value={cell.valeur}
-                        disabled={readOnly}
-                        onChange={(e) => onChange(key, "valeur", e.target.value)}
-                        className={`h-8 text-center ${belowPassage ? "border-red-500 text-red-600" : ""}`}
-                      />
+                      {isQualitative ? (
+                        <Select
+                          value={cell.valeur_qualitative}
+                          disabled={readOnly}
+                          onChange={(e) =>
+                            onChange(key, "valeur_qualitative", e.target.value)
+                          }
+                          className="h-8"
+                        >
+                          <option value="">—</option>
+                          {STATUT_COMPETENCE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={noteMax}
+                          step={0.25}
+                          value={cell.valeur}
+                          disabled={readOnly}
+                          onChange={(e) => onChange(key, "valeur", e.target.value)}
+                          className={`h-8 text-center ${belowPassage ? "border-red-500 text-red-600" : ""}`}
+                        />
+                      )}
                       <Input
                         value={cell.appreciation}
                         disabled={readOnly}

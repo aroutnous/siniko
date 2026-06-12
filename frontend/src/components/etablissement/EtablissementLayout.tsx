@@ -10,7 +10,6 @@ const TABS = [
   { to: ROUTES.classes, label: "Classes" },
   { to: ROUTES.salles, label: "Salles" },
   { to: ROUTES.etablissementMatieres, label: "Matières" },
-  { to: ROUTES.etablissementConfigNotation, label: "Notation" },
 ] as const;
 
 export function EtablissementLayout(): React.JSX.Element {

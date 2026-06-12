@@ -14,7 +14,6 @@ import { LoginPageGeneric } from "@/pages/auth/LoginPageGeneric";
 import { ClassesPage } from "@/pages/classes/ClassesPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { AnneesPage } from "@/pages/etablissement/AnneesPage";
-import { ConfigNotationPage } from "@/pages/etablissement/ConfigNotationPage";
 import { MatieresPage } from "@/pages/etablissement/MatieresPage";
 import { PeriodesPage } from "@/pages/etablissement/PeriodesPage";
 import { WizardEtablissementPage } from "@/pages/etablissement/WizardEtablissementPage";
@@ -139,11 +138,6 @@ export const router = createBrowserRouter([
               { id: "etablissement-classes", path: "classes", element: <ClassesPage /> },
               { id: "etablissement-salles", path: "salles", element: <SallesPage /> },
               { id: "etablissement-matieres", path: "matieres", element: <MatieresPage /> },
-              {
-                id: "etablissement-config-notation",
-                path: "config-notation",
-                element: <ConfigNotationPage />,
-              },
               {
                 id: "etablissement-niveaux-alias",
                 path: "niveaux",

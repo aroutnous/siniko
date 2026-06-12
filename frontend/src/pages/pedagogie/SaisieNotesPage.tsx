@@ -19,7 +19,7 @@ import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   ClasseNiveau,
-  ConfigNotation,
+  Cycle,
   Eleve,
   Matiere,
   Note,
@@ -60,6 +60,14 @@ export function SaisieNotesPage(): React.JSX.Element {
     },
   });
 
+  const { data: cycles = [] } = useQuery({
+    queryKey: ["cycles"],
+    queryFn: async () => {
+      const { data } = await api.get<Cycle[]>(ETABLISSEMENT_API.cycles);
+      return data;
+    },
+  });
+
   const { data: matieresAll = [] } = useQuery({
     queryKey: ["matieres"],
     queryFn: async () => {
@@ -68,15 +76,19 @@ export function SaisieNotesPage(): React.JSX.Element {
     },
   });
 
-  const { data: configNotation } = useQuery({
-    queryKey: ["config-notation"],
-    queryFn: async () => {
-      const { data } = await api.get<ConfigNotation>(ETABLISSEMENT_API.configNotation);
-      return data;
-    },
-  });
-
   const selectedSalle = salles.find((s) => s.id === classeId);
+
+  const selectedCycle = useMemo(() => {
+    if (!selectedSalle) return null;
+    const niveau = classesNiveau.find((c) => c.id === selectedSalle.classe_id);
+    if (!niveau) return null;
+    return cycles.find((c) => c.id === niveau.cycle_id) ?? null;
+  }, [selectedSalle, classesNiveau, cycles]);
+
+  const typeEvaluation = selectedCycle?.type_evaluation ?? "chiffree";
+  const isQualitative = typeEvaluation === "qualitative";
+  const noteMax = selectedCycle?.note_max ?? 20;
+  const notePassage = selectedCycle?.note_passage ?? 10;
 
   const matieres = useMemo(() => {
     if (!selectedSalle) return [];
@@ -143,14 +155,15 @@ export function SaisieNotesPage(): React.JSX.Element {
         );
         const key = cellKey(eleve.id, matiere.id);
         next[key] = {
-          valeur: existing ? String(existing.valeur) : "",
+          valeur: existing?.valeur != null ? String(existing.valeur) : "",
+          valeur_qualitative: existing?.valeur_qualitative ?? "",
           appreciation: existing?.appreciation ?? "",
           noteId: existing?.id,
         };
       });
     });
     setGrid(next);
-  }, [classeId, periodeId, eleveIdsKey, matiereIdsKey, notesQueryKey]);
+  }, [classeId, periodeId, eleveIdsKey, matiereIdsKey, notesQueryKey, isQualitative]);
 
   const saveMutation = useMutation({
     mutationFn: async (notes: NoteCreatePayload[]) => {
@@ -185,20 +198,32 @@ export function SaisieNotesPage(): React.JSX.Element {
       for (const matiere of matieres) {
         const key = cellKey(eleve.id, matiere.id);
         const cell = grid[key];
-        if (!cell?.valeur) continue;
-        const valeur = Number(cell.valeur);
-        if (Number.isNaN(valeur) || valeur < 0 || valeur > 20) {
-          toast(`Note invalide pour ${eleve.nom} — ${matiere.nom}`, "error");
-          return;
+        if (isQualitative) {
+          if (!cell?.valeur_qualitative) continue;
+          notes.push({
+            eleve_id: eleve.id,
+            matiere_id: matiere.id,
+            periode_id: periodeId,
+            classe_id: classeId,
+            valeur_qualitative: cell.valeur_qualitative,
+            appreciation: cell.appreciation || undefined,
+          });
+        } else {
+          if (!cell?.valeur) continue;
+          const valeur = Number(cell.valeur);
+          if (Number.isNaN(valeur) || valeur < 0 || valeur > noteMax) {
+            toast(`Note invalide pour ${eleve.nom} — ${matiere.nom}`, "error");
+            return;
+          }
+          notes.push({
+            eleve_id: eleve.id,
+            matiere_id: matiere.id,
+            periode_id: periodeId,
+            classe_id: classeId,
+            valeur,
+            appreciation: cell.appreciation || undefined,
+          });
         }
-        notes.push({
-          eleve_id: eleve.id,
-          matiere_id: matiere.id,
-          periode_id: periodeId,
-          classe_id: classeId,
-          valeur,
-          appreciation: cell.appreciation || undefined,
-        });
       }
     }
     if (notes.length === 0) {
@@ -207,8 +232,6 @@ export function SaisieNotesPage(): React.JSX.Element {
     }
     saveMutation.mutate(notes);
   };
-
-  const notePassage = configNotation?.note_passage ?? 10;
 
   return (
     <div className="space-y-6">
@@ -262,9 +285,20 @@ export function SaisieNotesPage(): React.JSX.Element {
           Classe :{" "}
           {classesNiveau.find((c) => c.id === selectedSalle.classe_id)?.nom ?? "—"}
           {" · "}
-          Note de passage : <strong>{notePassage}</strong>
+          Cycle : <strong>{selectedCycle?.nom ?? "—"}</strong>
           {" · "}
-          Notes en rouge = sous le seuil
+          Évaluation :{" "}
+          <strong>{isQualitative ? "qualitative (compétences)" : "chiffrée"}</strong>
+          {!isQualitative ? (
+            <>
+              {" · "}
+              Note max : <strong>{noteMax}</strong>
+              {" · "}
+              Note de passage : <strong>{notePassage}</strong>
+              {" · "}
+              Notes en rouge = sous le seuil
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -279,6 +313,8 @@ export function SaisieNotesPage(): React.JSX.Element {
           eleves={eleves}
           matieres={matieres}
           values={grid}
+          typeEvaluation={typeEvaluation}
+          noteMax={noteMax}
           notePassage={notePassage}
           readOnly={!canSaveNotes}
           onChange={handleChange}

@@ -7,7 +7,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -21,10 +21,13 @@ import { Select } from "@/components/ui/select";
 import { api, getErrorMessage } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { parseCycleNotationFromValeur } from "@/lib/pedagogie-utils";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   AnneeScolaire,
+  Cycle,
+  CycleUpdatePayload,
   ValeurSysteme,
   WizardEtablissementData,
   WizardEtablissementResponse,
@@ -37,8 +40,15 @@ const STEPS = [
   "Classes",
   "Salles",
   "Matières",
-  "Notation",
+  "Notation par cycle",
 ] as const;
+
+interface CycleNotationDraft {
+  type_evaluation: "chiffree" | "qualitative";
+  note_max: string;
+  note_passage: string;
+  arrondi: string;
+}
 
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -91,9 +101,9 @@ export function WizardEtablissementPage(): React.JSX.Element {
   const [classesSelectionnees, setClassesSelectionnees] = useState<Set<string>>(new Set());
   const [salles, setSalles] = useState<Record<string, SalleDraft[]>>({});
   const [matieres, setMatieres] = useState<Record<string, MatiereDraft[]>>({});
-  const [noteMax, setNoteMax] = useState("20");
-  const [notePassage, setNotePassage] = useState("10");
-  const [arrondi, setArrondi] = useState("2");
+  const [cycleNotation, setCycleNotation] = useState<Record<string, CycleNotationDraft>>(
+    {},
+  );
   const [stepError, setStepError] = useState<string | null>(null);
 
   const { data: anneesValeurs = [], isLoading: loadingAnnees } = useQuery({
@@ -175,11 +185,53 @@ export function WizardEtablissementPage(): React.JSX.Element {
     return list;
   }, [classesQueries.data, cyclesSelectionnes, classesSelectionnees]);
 
+  useEffect(() => {
+    if (step !== 6) return;
+    setCycleNotation((prev) => {
+      const next = { ...prev };
+      for (const cycleName of cyclesSelectionnes) {
+        if (next[cycleName]) continue;
+        const valeur = cyclesSorted.find((c) => c.valeur === cycleName);
+        next[cycleName] = parseCycleNotationFromValeur(valeur?.metadata_json);
+      }
+      return next;
+    });
+  }, [step, cyclesSelectionnes, cyclesSorted]);
+
   const wizardMutation = useMutation({
-    mutationFn: async (payload: WizardEtablissementData) => {
+    mutationFn: async ({
+      payload,
+      notations,
+    }: {
+      payload: WizardEtablissementData;
+      notations: Record<string, CycleNotationDraft>;
+    }) => {
       const { data } = await api.post<WizardEtablissementResponse>(
         ETABLISSEMENT_API.wizard,
         payload,
+      );
+      const { data: cycles } = await api.get<Cycle[]>(ETABLISSEMENT_API.cycles);
+      await Promise.all(
+        [...cyclesSelectionnes].map(async (cycleName) => {
+          const cycle = cycles.find((c) => c.nom === cycleName);
+          const notation = notations[cycleName];
+          if (!cycle || !notation) return;
+          const body: CycleUpdatePayload =
+            notation.type_evaluation === "qualitative"
+              ? {
+                  type_evaluation: "qualitative",
+                  note_max: null,
+                  note_passage: null,
+                  arrondi: null,
+                }
+              : {
+                  type_evaluation: "chiffree",
+                  note_max: Number(notation.note_max),
+                  note_passage: Number(notation.note_passage),
+                  arrondi: Number(notation.arrondi),
+                };
+          await api.put(`${ETABLISSEMENT_API.cycles}/${cycle.id}`, body);
+        }),
       );
       return data;
     },
@@ -289,10 +341,24 @@ export function WizardEtablissementPage(): React.JSX.Element {
         }
         return null;
       case 6: {
-        const max = Number(noteMax);
-        const passage = Number(notePassage);
-        if (!Number.isFinite(max) || max <= 0) return "Note maximale invalide.";
-        if (!Number.isFinite(passage) || passage < 0) return "Note de passage invalide.";
+        for (const cycleName of cyclesSelectionnes) {
+          const n = cycleNotation[cycleName];
+          if (!n) {
+            return `Notation manquante pour ${displayCycleLabel(cycleName)}.`;
+          }
+          if (n.type_evaluation === "qualitative") continue;
+          const max = Number(n.note_max);
+          const passage = Number(n.note_passage);
+          if (!Number.isFinite(max) || max <= 0) {
+            return `Note maximale invalide pour ${displayCycleLabel(cycleName)}.`;
+          }
+          if (!Number.isFinite(passage) || passage < 0) {
+            return `Note de passage invalide pour ${displayCycleLabel(cycleName)}.`;
+          }
+          if (passage > max) {
+            return `La note de passage dépasse la note max pour ${displayCycleLabel(cycleName)}.`;
+          }
+        }
         return null;
       }
       default:
@@ -354,14 +420,9 @@ export function WizardEtablissementPage(): React.JSX.Element {
             coefficient: Number(m.coefficient),
           })),
       ),
-      config_notation: {
-        note_max: Number(noteMax),
-        note_passage: Number(notePassage),
-        arrondi: Number(arrondi),
-      },
     };
 
-    wizardMutation.mutate(payload);
+    wizardMutation.mutate({ payload, notations: cycleNotation });
   };
 
   if (loadingAnnees || loadingPeriodes || loadingCycles) {
@@ -728,41 +789,76 @@ export function WizardEtablissementPage(): React.JSX.Element {
           ) : null}
 
           {step === 6 ? (
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="note_max">Note maximale</Label>
-                <Input
-                  id="note_max"
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  value={noteMax}
-                  onChange={(e) => setNoteMax(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="note_passage">Note de passage</Label>
-                <Input
-                  id="note_passage"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={notePassage}
-                  onChange={(e) => setNotePassage(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="arrondi">Arrondi (décimales)</Label>
-                <Select
-                  id="arrondi"
-                  value={arrondi}
-                  onChange={(e) => setArrondi(e.target.value)}
-                >
-                  <option value="0">0 décimale</option>
-                  <option value="1">1 décimale</option>
-                  <option value="2">2 décimales</option>
-                </Select>
-              </div>
+            <div className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                La notation est définie par cycle. Les valeurs par défaut proviennent du
+                référentiel système ; vous pouvez les ajuster avant de terminer.
+              </p>
+              {[...cyclesSelectionnes].map((cycleName) => {
+                const draft = cycleNotation[cycleName];
+                if (!draft) return null;
+                const isQualitative = draft.type_evaluation === "qualitative";
+                return (
+                  <div key={cycleName} className="rounded-lg border border-border p-4">
+                    <h3 className="mb-3 font-medium">{displayCycleLabel(cycleName)}</h3>
+                    {isQualitative ? (
+                      <p className="text-sm text-muted-foreground">
+                        Évaluation qualitative — pas de notes chiffrées ni de moyenne pour ce
+                        cycle.
+                      </p>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label>Note maximale</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={draft.note_max}
+                            onChange={(e) =>
+                              setCycleNotation((prev) => ({
+                                ...prev,
+                                [cycleName]: { ...draft, note_max: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Note de passage</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={draft.note_passage}
+                            onChange={(e) =>
+                              setCycleNotation((prev) => ({
+                                ...prev,
+                                [cycleName]: { ...draft, note_passage: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Arrondi (décimales)</Label>
+                          <Select
+                            value={draft.arrondi}
+                            onChange={(e) =>
+                              setCycleNotation((prev) => ({
+                                ...prev,
+                                [cycleName]: { ...draft, arrondi: e.target.value },
+                              }))
+                            }
+                          >
+                            <option value="0">0 décimale</option>
+                            <option value="1">1 décimale</option>
+                            <option value="2">2 décimales</option>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 

@@ -42,7 +42,6 @@ export const ROUTES = {
   etablissementNiveaux: "/etablissement/niveaux",
   etablissementClasses: "/etablissement/classes",
   etablissementMatieres: "/etablissement/matieres",
-  etablissementConfigNotation: "/etablissement/config-notation",
   pedagogieNotes: "/pedagogie/notes",
   pedagogieBulletins: "/pedagogie/bulletins",
   pedagogieResultats: "/pedagogie/resultats",

@@ -14,7 +14,6 @@ export const ETABLISSEMENT_API = {
   /** Alias legacy divisions physiques. */
   classesLegacy: "/divisions",
   matieres: "/matieres",
-  configNotation: "/config-notation",
   structure: "/etablissement/structure",
   wizard: "/wizard",
   valeursCycles: "/valeurs/cycles",
