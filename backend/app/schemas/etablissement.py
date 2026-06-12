@@ -325,6 +325,7 @@ class WizardMatiereItem(BaseModel):
     classe: str
     nom: str
     coefficient: Decimal = Field(default=Decimal("1.00"), gt=0)
+    est_domaine_competence: bool = False
 
 
 class WizardEtablissementData(BaseModel):

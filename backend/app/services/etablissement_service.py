@@ -865,6 +865,7 @@ class EtablissementService:
                             nom=matiere_data.nom.strip(),
                             coefficient=matiere_data.coefficient,
                             est_active=True,
+                            est_domaine_competence=matiere_data.est_domaine_competence,
                         )
                     )
                     matieres_creees += 1

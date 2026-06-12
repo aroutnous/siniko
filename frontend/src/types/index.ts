@@ -341,6 +341,7 @@ export interface WizardMatiereItem {
   classe: string;
   nom: string;
   coefficient: number;
+  est_domaine_competence?: boolean;
 }
 
 export interface WizardEtablissementData {

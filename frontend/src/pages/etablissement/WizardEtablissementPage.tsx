@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,10 @@ interface MatiereDraft {
   localId: string;
   nom: string;
   coefficient: string;
+  est_domaine_competence: boolean;
 }
+
+const JARDIN_CYCLE = "Jardins d enfants";
 
 function classeKey(cycle: string, classe: string): string {
   return `${cycle}::${classe}`;
@@ -90,6 +94,19 @@ function displayCycleLabel(valeur: string): string {
   return valeur;
 }
 
+function isJardinCycle(cycle: string): boolean {
+  return cycle === JARDIN_CYCLE;
+}
+
+function newMatiereDraft(cycle: string): MatiereDraft {
+  return {
+    localId: newLocalId(),
+    nom: "",
+    coefficient: "1",
+    est_domaine_competence: isJardinCycle(cycle),
+  };
+}
+
 export function WizardEtablissementPage(): React.JSX.Element {
   const navigate = useNavigate();
   const toast = useToastStore((s) => s.show);
@@ -105,6 +122,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
     {},
   );
   const [stepError, setStepError] = useState<string | null>(null);
+  const [pendingCycleDeselect, setPendingCycleDeselect] = useState<string | null>(null);
 
   const { data: anneesValeurs = [], isLoading: loadingAnnees } = useQuery({
     queryKey: ["valeurs-annees-scolaires"],
@@ -144,21 +162,26 @@ export function WizardEtablissementPage(): React.JSX.Element {
     [cyclesValeurs],
   );
 
+  const cyclesSelectionnesOrdered = useMemo(
+    () => cyclesSorted.map((c) => c.valeur).filter((v) => cyclesSelectionnes.has(v)),
+    [cyclesSorted, cyclesSelectionnes],
+  );
+
   const classesParCycleQueries = useMemo(
     () =>
-      [...cyclesSelectionnes].map((cycle) => ({
+      cyclesSelectionnesOrdered.map((cycle) => ({
         cycle,
         queryKey: ["valeurs-classes", cycle] as const,
       })),
-    [cyclesSelectionnes],
+    [cyclesSelectionnesOrdered],
   );
 
   const classesQueries = useQuery({
-    queryKey: ["valeurs-classes-wizard", [...cyclesSelectionnes].sort().join(",")],
+    queryKey: ["valeurs-classes-wizard", cyclesSelectionnesOrdered.join(",")],
     queryFn: async () => {
       const entries: Record<string, ValeurSysteme[]> = {};
       await Promise.all(
-        [...cyclesSelectionnes].map(async (cycle) => {
+        cyclesSelectionnesOrdered.map(async (cycle) => {
           const { data } = await api.get<ValeurSysteme[]>(
             ETABLISSEMENT_API.valeursClasses,
             { params: { cycle } },
@@ -174,7 +197,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
   const selectedClassesList = useMemo(() => {
     const list: { cycle: string; classe: string; key: string }[] = [];
     const data = classesQueries.data ?? {};
-    for (const cycle of cyclesSelectionnes) {
+    for (const cycle of cyclesSelectionnesOrdered) {
       for (const row of data[cycle] ?? []) {
         const key = classeKey(cycle, row.valeur);
         if (classesSelectionnees.has(key)) {
@@ -183,25 +206,22 @@ export function WizardEtablissementPage(): React.JSX.Element {
       }
     }
     return list;
-  }, [classesQueries.data, cyclesSelectionnes, classesSelectionnees]);
+  }, [classesQueries.data, cyclesSelectionnesOrdered, classesSelectionnees]);
 
-  const allWizardClassKeys = useMemo(() => {
-    const data = classesQueries.data ?? {};
-    const keys: string[] = [];
-    for (const cycle of cyclesSelectionnes) {
-      for (const row of data[cycle] ?? []) {
-        keys.push(classeKey(cycle, row.valeur));
-      }
+  const selectedClassesByCycle = useMemo(() => {
+    const byCycle = new Map<string, { cycle: string; classe: string; key: string }[]>();
+    for (const item of selectedClassesList) {
+      const list = byCycle.get(item.cycle) ?? [];
+      list.push(item);
+      byCycle.set(item.cycle, list);
     }
-    return keys;
-  }, [classesQueries.data, cyclesSelectionnes]);
-
-  const allClassesSelected = useMemo(
-    () =>
-      allWizardClassKeys.length > 0 &&
-      allWizardClassKeys.every((key) => classesSelectionnees.has(key)),
-    [allWizardClassKeys, classesSelectionnees],
-  );
+    return cyclesSelectionnesOrdered
+      .map((cycle) => ({
+        cycle,
+        classes: byCycle.get(cycle) ?? [],
+      }))
+      .filter((group) => group.classes.length > 0);
+  }, [selectedClassesList, cyclesSelectionnesOrdered]);
 
   const getCycleClassKeys = (cycle: string): string[] =>
     (classesQueries.data?.[cycle] ?? []).map((classe) =>
@@ -217,14 +237,14 @@ export function WizardEtablissementPage(): React.JSX.Element {
     if (step !== 6) return;
     setCycleNotation((prev) => {
       const next = { ...prev };
-      for (const cycleName of cyclesSelectionnes) {
+      for (const cycleName of cyclesSelectionnesOrdered) {
         if (next[cycleName]) continue;
         const valeur = cyclesSorted.find((c) => c.valeur === cycleName);
         next[cycleName] = parseCycleNotationFromValeur(valeur?.metadata_json);
       }
       return next;
     });
-  }, [step, cyclesSelectionnes, cyclesSorted]);
+  }, [step, cyclesSelectionnesOrdered, cyclesSorted]);
 
   const wizardMutation = useMutation({
     mutationFn: async ({
@@ -240,7 +260,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
       );
       const { data: cycles } = await api.get<Cycle[]>(ETABLISSEMENT_API.cycles);
       await Promise.all(
-        [...cyclesSelectionnes].map(async (cycleName) => {
+        cyclesSelectionnesOrdered.map(async (cycleName) => {
           const cycle = cycles.find((c) => c.nom === cycleName);
           const notation = notations[cycleName];
           if (!cycle || !notation) return;
@@ -279,22 +299,67 @@ export function WizardEtablissementPage(): React.JSX.Element {
     setPeriodes(next);
   };
 
-  const toggleCycle = (cycle: string, checked: boolean): void => {
+  const clearCycleConfiguration = (cycle: string): void => {
+    const prefix = `${cycle}::`;
     setCyclesSelectionnes((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(cycle);
-      else next.delete(cycle);
+      next.delete(cycle);
       return next;
     });
-    if (!checked) {
-      setClassesSelectionnees((prev) => {
-        const next = new Set(prev);
-        for (const key of prev) {
-          if (key.startsWith(`${cycle}::`)) next.delete(key);
-        }
-        return next;
-      });
+    setClassesSelectionnees((prev) => {
+      const next = new Set(prev);
+      for (const key of prev) {
+        if (key.startsWith(prefix)) next.delete(key);
+      }
+      return next;
+    });
+    setSalles((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith(prefix)) delete next[key];
+      }
+      return next;
+    });
+    setMatieres((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith(prefix)) delete next[key];
+      }
+      return next;
+    });
+    setCycleNotation((prev) => {
+      const next = { ...prev };
+      delete next[cycle];
+      return next;
+    });
+  };
+
+  const cycleHasConfiguration = (cycle: string): boolean => {
+    const prefix = `${cycle}::`;
+    if ([...classesSelectionnees].some((key) => key.startsWith(prefix))) return true;
+    if (Object.keys(salles).some((key) => key.startsWith(prefix))) return true;
+    if (Object.keys(matieres).some((key) => key.startsWith(prefix))) return true;
+    return cycle in cycleNotation;
+  };
+
+  const toggleCycle = (cycle: string, checked: boolean): void => {
+    if (checked) {
+      setCyclesSelectionnes((prev) => new Set(prev).add(cycle));
+      return;
     }
+    clearCycleConfiguration(cycle);
+  };
+
+  const requestToggleCycle = (cycle: string, checked: boolean): void => {
+    if (checked) {
+      toggleCycle(cycle, true);
+      return;
+    }
+    if (cycleHasConfiguration(cycle)) {
+      setPendingCycleDeselect(cycle);
+      return;
+    }
+    toggleCycle(cycle, false);
   };
 
   const ensureSalleDrafts = (keys: string[]): void => {
@@ -321,20 +386,6 @@ export function WizardEtablissementPage(): React.JSX.Element {
     });
     if (checked) {
       ensureSalleDrafts([key]);
-    }
-  };
-
-  const toggleAllClasses = (select: boolean): void => {
-    setClassesSelectionnees((prev) => {
-      const next = new Set(prev);
-      for (const key of allWizardClassKeys) {
-        if (select) next.add(key);
-        else next.delete(key);
-      }
-      return next;
-    });
-    if (select) {
-      ensureSalleDrafts(allWizardClassKeys);
     }
   };
 
@@ -406,7 +457,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
         }
         return null;
       case 6: {
-        for (const cycleName of cyclesSelectionnes) {
+        for (const cycleName of cyclesSelectionnesOrdered) {
           const n = cycleNotation[cycleName];
           if (!n) {
             return `Notation manquante pour ${displayCycleLabel(cycleName)}.`;
@@ -464,7 +515,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
           date_debut: p.date_debut,
           date_fin: p.date_fin,
         })),
-      cycles_selectionnes: [...cyclesSelectionnes],
+      cycles_selectionnes: cyclesSelectionnesOrdered,
       classes_selectionnees: selectedClassesList.map(({ cycle, classe }) => ({
         cycle,
         classe,
@@ -476,13 +527,16 @@ export function WizardEtablissementPage(): React.JSX.Element {
           capacite: Number(s.capacite),
         })),
       ),
-      matieres: selectedClassesList.flatMap(({ key, classe }) =>
+      matieres: selectedClassesList.flatMap(({ key, classe, cycle }) =>
         (matieres[key] ?? [])
           .filter((m) => m.nom.trim())
           .map((m) => ({
             classe,
             nom: m.nom.trim(),
             coefficient: Number(m.coefficient),
+            est_domaine_competence: isJardinCycle(cycle)
+              ? true
+              : m.est_domaine_competence,
           })),
       ),
     };
@@ -623,24 +677,39 @@ export function WizardEtablissementPage(): React.JSX.Element {
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-3">
-              {cyclesSorted.map((cycle) => {
-                const Icon = CYCLE_ICONS[cycle.valeur] ?? BookOpen;
-                const checked = cyclesSelectionnes.has(cycle.valeur);
-                return (
-                  <label
-                    key={cycle.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-4 hover:bg-muted/40"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(c) => toggleCycle(cycle.valeur, c)}
-                    />
-                    <Icon className="h-5 w-5 text-primary" />
-                    <span className="font-medium">{displayCycleLabel(cycle.valeur)}</span>
-                  </label>
-                );
-              })}
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Les étapes suivantes (classes, salles, matières, notation) s&apos;adaptent
+                automatiquement aux cycles que vous sélectionnez.
+              </p>
+              <div className="space-y-3">
+                {cyclesSorted.map((cycle) => {
+                  const Icon = CYCLE_ICONS[cycle.valeur] ?? BookOpen;
+                  const checked = cyclesSelectionnes.has(cycle.valeur);
+                  const notation = parseCycleNotationFromValeur(cycle.metadata_json);
+                  return (
+                    <label
+                      key={cycle.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-4 hover:bg-muted/40"
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={checked}
+                        onCheckedChange={(c) => requestToggleCycle(cycle.valeur, c)}
+                      />
+                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <div>
+                        <span className="font-medium">{displayCycleLabel(cycle.valeur)}</span>
+                        <p className="text-sm text-muted-foreground">
+                          {notation.type_evaluation === "qualitative"
+                            ? "Évaluation qualitative"
+                            : "Évaluation chiffrée"}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
@@ -654,19 +723,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
                 <LoadingSpinner label="Chargement des classes…" />
               ) : (
                 <>
-                  {allWizardClassKeys.length > 0 ? (
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleAllClasses(!allClassesSelected)}
-                      >
-                        {allClassesSelected ? "Tout désélectionner" : "Tout sélectionner"}
-                      </Button>
-                    </div>
-                  ) : null}
-                  {[...cyclesSelectionnes].map((cycle) => {
+                  {cyclesSelectionnesOrdered.map((cycle) => {
                     const cycleFullySelected = isCycleFullySelected(cycle);
                     const cycleClassKeys = getCycleClassKeys(cycle);
                     return (
@@ -716,174 +773,213 @@ export function WizardEtablissementPage(): React.JSX.Element {
           ) : null}
 
           {step === 4 ? (
-            <div className="space-y-6">
-              {selectedClassesList.map(({ key, classe }) => (
-                <div key={key} className="rounded-lg border border-border p-4">
-                  <h3 className="mb-3 font-medium">{classe}</h3>
-                  <div className="space-y-2">
-                    {(salles[key] ?? []).map((salle) => (
-                      <div key={salle.localId} className="flex flex-wrap items-end gap-2">
-                        <div className="min-w-[140px] flex-1 space-y-1">
-                          <Label>Nom salle</Label>
-                          <Input
-                            value={salle.nom_salle}
-                            placeholder="Salle A"
-                            onChange={(e) =>
+            <div className="space-y-8">
+              {selectedClassesByCycle.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sélectionnez des classes à l&apos;étape précédente.
+                </p>
+              ) : (
+                selectedClassesByCycle.map(({ cycle, classes }) => (
+                  <section key={cycle}>
+                    <h3 className="mb-4 font-semibold">{displayCycleLabel(cycle)}</h3>
+                    <div className="space-y-6">
+                      {classes.map(({ key, classe }) => (
+                        <div key={key} className="rounded-lg border border-border p-4">
+                          <h4 className="mb-3 font-medium">{classe}</h4>
+                          <div className="space-y-2">
+                            {(salles[key] ?? []).map((salle) => (
+                              <div
+                                key={salle.localId}
+                                className="flex flex-wrap items-end gap-2"
+                              >
+                                <div className="min-w-[140px] flex-1 space-y-1">
+                                  <Label>Nom salle</Label>
+                                  <Input
+                                    value={salle.nom_salle}
+                                    placeholder="Salle A"
+                                    onChange={(e) =>
+                                      setSalles((prev) => ({
+                                        ...prev,
+                                        [key]: (prev[key] ?? []).map((s) =>
+                                          s.localId === salle.localId
+                                            ? { ...s, nom_salle: e.target.value }
+                                            : s,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="w-28 space-y-1">
+                                  <Label>Capacité</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={salle.capacite}
+                                    onChange={(e) =>
+                                      setSalles((prev) => ({
+                                        ...prev,
+                                        [key]: (prev[key] ?? []).map((s) =>
+                                          s.localId === salle.localId
+                                            ? { ...s, capacite: e.target.value }
+                                            : s,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 w-9 shrink-0 px-0"
+                                  disabled={(salles[key] ?? []).length <= 1}
+                                  onClick={() =>
+                                    setSalles((prev) => ({
+                                      ...prev,
+                                      [key]: (prev[key] ?? []).filter(
+                                        (s) => s.localId !== salle.localId,
+                                      ),
+                                    }))
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() =>
                               setSalles((prev) => ({
                                 ...prev,
-                                [key]: (prev[key] ?? []).map((s) =>
-                                  s.localId === salle.localId
-                                    ? { ...s, nom_salle: e.target.value }
-                                    : s,
-                                ),
+                                [key]: [
+                                  ...(prev[key] ?? []),
+                                  { localId: newLocalId(), nom_salle: "", capacite: "" },
+                                ],
                               }))
                             }
-                          />
+                          >
+                            <Plus className="mr-1 h-4 w-4" />
+                            Ajouter une salle
+                          </Button>
                         </div>
-                        <div className="w-28 space-y-1">
-                          <Label>Capacité</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={salle.capacite}
-                            onChange={(e) =>
-                              setSalles((prev) => ({
-                                ...prev,
-                                [key]: (prev[key] ?? []).map((s) =>
-                                  s.localId === salle.localId
-                                    ? { ...s, capacite: e.target.value }
-                                    : s,
-                                ),
-                              }))
-                            }
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-9 w-9 shrink-0 px-0"
-                          disabled={(salles[key] ?? []).length <= 1}
-                          onClick={() =>
-                            setSalles((prev) => ({
-                              ...prev,
-                              [key]: (prev[key] ?? []).filter(
-                                (s) => s.localId !== salle.localId,
-                              ),
-                            }))
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() =>
-                      setSalles((prev) => ({
-                        ...prev,
-                        [key]: [
-                          ...(prev[key] ?? []),
-                          { localId: newLocalId(), nom_salle: "", capacite: "" },
-                        ],
-                      }))
-                    }
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Ajouter une salle
-                  </Button>
-                </div>
-              ))}
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
             </div>
           ) : null}
 
           {step === 5 ? (
-            <div className="space-y-6">
-              {selectedClassesList.map(({ key, classe }) => (
-                <div key={key} className="rounded-lg border border-border p-4">
-                  <h3 className="mb-3 font-medium">{classe}</h3>
-                  <div className="space-y-2">
-                    {(matieres[key] ?? []).map((matiere) => (
-                      <div key={matiere.localId} className="flex flex-wrap items-end gap-2">
-                        <div className="min-w-[140px] flex-1 space-y-1">
-                          <Label>Matière</Label>
-                          <Input
-                            value={matiere.nom}
-                            placeholder="Français"
-                            onChange={(e) =>
+            <div className="space-y-8">
+              {selectedClassesByCycle.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sélectionnez des classes à l&apos;étape précédente.
+                </p>
+              ) : (
+                selectedClassesByCycle.map(({ cycle, classes }) => (
+                  <section key={cycle}>
+                    <h3 className="mb-4 font-semibold">{displayCycleLabel(cycle)}</h3>
+                    <div className="space-y-6">
+                      {classes.map(({ key, classe }) => (
+                        <div key={key} className="rounded-lg border border-border p-4">
+                          <h4 className="mb-3 font-medium">{classe}</h4>
+                          <div className="space-y-2">
+                            {(matieres[key] ?? []).map((matiere) => (
+                              <div
+                                key={matiere.localId}
+                                className="flex flex-wrap items-end gap-2"
+                              >
+                                <div className="min-w-[140px] flex-1 space-y-1">
+                                  <Label>Matière</Label>
+                                  <Input
+                                    value={matiere.nom}
+                                    placeholder={
+                                      isJardinCycle(cycle) ? "Motricité" : "Français"
+                                    }
+                                    onChange={(e) =>
+                                      setMatieres((prev) => ({
+                                        ...prev,
+                                        [key]: (prev[key] ?? []).map((m) =>
+                                          m.localId === matiere.localId
+                                            ? { ...m, nom: e.target.value }
+                                            : m,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="w-24 space-y-1">
+                                  <Label>Coef.</Label>
+                                  <Input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    value={matiere.coefficient}
+                                    onChange={(e) =>
+                                      setMatieres((prev) => ({
+                                        ...prev,
+                                        [key]: (prev[key] ?? []).map((m) =>
+                                          m.localId === matiere.localId
+                                            ? { ...m, coefficient: e.target.value }
+                                            : m,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                {isJardinCycle(cycle) ? (
+                                  <div className="flex h-9 items-center gap-2 px-1">
+                                    <Checkbox checked disabled />
+                                    <span className="text-sm text-muted-foreground">
+                                      Domaine de compétence
+                                    </span>
+                                  </div>
+                                ) : null}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 w-9 shrink-0 px-0"
+                                  onClick={() =>
+                                    setMatieres((prev) => ({
+                                      ...prev,
+                                      [key]: (prev[key] ?? []).filter(
+                                        (m) => m.localId !== matiere.localId,
+                                      ),
+                                    }))
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() =>
                               setMatieres((prev) => ({
                                 ...prev,
-                                [key]: (prev[key] ?? []).map((m) =>
-                                  m.localId === matiere.localId
-                                    ? { ...m, nom: e.target.value }
-                                    : m,
-                                ),
+                                [key]: [...(prev[key] ?? []), newMatiereDraft(cycle)],
                               }))
                             }
-                          />
+                          >
+                            <Plus className="mr-1 h-4 w-4" />
+                            Ajouter une matière
+                          </Button>
                         </div>
-                        <div className="w-24 space-y-1">
-                          <Label>Coef.</Label>
-                          <Input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={matiere.coefficient}
-                            onChange={(e) =>
-                              setMatieres((prev) => ({
-                                ...prev,
-                                [key]: (prev[key] ?? []).map((m) =>
-                                  m.localId === matiere.localId
-                                    ? { ...m, coefficient: e.target.value }
-                                    : m,
-                                ),
-                              }))
-                            }
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-9 w-9 shrink-0 px-0"
-                          onClick={() =>
-                            setMatieres((prev) => ({
-                              ...prev,
-                              [key]: (prev[key] ?? []).filter(
-                                (m) => m.localId !== matiere.localId,
-                              ),
-                            }))
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() =>
-                      setMatieres((prev) => ({
-                        ...prev,
-                        [key]: [
-                          ...(prev[key] ?? []),
-                          { localId: newLocalId(), nom: "", coefficient: "1" },
-                        ],
-                      }))
-                    }
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Ajouter une matière
-                  </Button>
-                </div>
-              ))}
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
             </div>
           ) : null}
 
@@ -893,7 +989,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
                 La notation est définie par cycle. Les valeurs par défaut proviennent du
                 référentiel système ; vous pouvez les ajuster avant de terminer.
               </p>
-              {[...cyclesSelectionnes].map((cycleName) => {
+              {cyclesSelectionnesOrdered.map((cycleName) => {
                 const draft = cycleNotation[cycleName];
                 if (!draft) return null;
                 const isQualitative = draft.type_evaluation === "qualitative";
@@ -902,8 +998,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
                     <h3 className="mb-3 font-medium">{displayCycleLabel(cycleName)}</h3>
                     {isQualitative ? (
                       <p className="text-sm text-muted-foreground">
-                        Évaluation qualitative — pas de notes chiffrées ni de moyenne pour ce
-                        cycle.
+                        Évaluation qualitative — pas de notes chiffrées
                       </p>
                     ) : (
                       <div className="grid gap-4 sm:grid-cols-3">
@@ -988,6 +1083,32 @@ export function WizardEtablissementPage(): React.JSX.Element {
           </Button>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(pendingCycleDeselect)}
+        onClose={() => setPendingCycleDeselect(null)}
+      >
+        <h2 className="mb-2 text-lg font-semibold">Désélectionner ce cycle ?</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Désélectionner ce cycle supprimera sa configuration en cours. Continuer ?
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setPendingCycleDeselect(null)}>
+            Annuler
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (pendingCycleDeselect) {
+                toggleCycle(pendingCycleDeselect, false);
+                setPendingCycleDeselect(null);
+              }
+            }}
+          >
+            Continuer
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }
