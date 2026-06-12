@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.eleve import Eleve, Inscription
 from app.models.enums import StatutBulletin, StatutInscription
-from app.models.etablissement import Classe, Cycle, Matiere, Periode, Salle
+from app.models.etablissement import (
+    Classe,
+    Cycle,
+    Matiere,
+    Periode,
+    Salle,
+    SequenceEvaluation,
+)
 from app.models.pedagogie import Bulletin, BulletinLigne, Note
 from app.schemas.pedagogie import (
     BulletinGenererRequest,
@@ -24,6 +31,9 @@ from app.schemas.pedagogie import (
 )
 from app.services.audit_service import log_audit
 from app.services.calcul_service import CalculService
+
+
+_CYCLE_1ER = "1er Cycle"
 
 
 class PedagogieService:
@@ -79,20 +89,20 @@ class PedagogieService:
         for item in data.notes:
             self._get_eleve(item.eleve_id)
             self._get_matiere(item.matiere_id)
-            self._get_periode(item.periode_id)
             self._get_salle(item.classe_id)
+            periode_id, sequence_id = self._resolve_note_links(item, cycle)
             self._validate_note_item(item, is_qualitative, cycle)
 
-            existing = (
-                self.db.query(Note)
-                .filter(
-                    Note.tenant_id == self.tenant_id,
-                    Note.eleve_id == item.eleve_id,
-                    Note.matiere_id == item.matiere_id,
-                    Note.periode_id == item.periode_id,
-                )
-                .first()
+            query = self.db.query(Note).filter(
+                Note.tenant_id == self.tenant_id,
+                Note.eleve_id == item.eleve_id,
+                Note.matiere_id == item.matiere_id,
             )
+            if sequence_id is not None:
+                query = query.filter(Note.sequence_id == sequence_id)
+            else:
+                query = query.filter(Note.periode_id == periode_id)
+            existing = query.first()
 
             if is_qualitative:
                 appreciation = item.appreciation
@@ -112,6 +122,8 @@ class PedagogieService:
                 existing.valeur = valeur
                 existing.valeur_qualitative = valeur_qualitative
                 existing.classe_id = item.classe_id
+                existing.periode_id = periode_id
+                existing.sequence_id = sequence_id
                 existing.appreciation = appreciation
                 existing.saisi_par = saisi_par
                 result.append(existing)
@@ -120,7 +132,8 @@ class PedagogieService:
                     tenant_id=self.tenant_id,
                     eleve_id=item.eleve_id,
                     matiere_id=item.matiere_id,
-                    periode_id=item.periode_id,
+                    periode_id=periode_id,
+                    sequence_id=sequence_id,
                     classe_id=item.classe_id,
                     valeur=valeur,
                     valeur_qualitative=valeur_qualitative,
@@ -176,7 +189,7 @@ class PedagogieService:
             notes_par_eleve.setdefault(note.eleve_id, []).append(note)
 
         coefficients = self._get_coefficients_map()
-        matiere_ids = {n.matiere_id for n in notes}
+        matiere_ids = {n.matiere_id for n in notes if n.matiere_id is not None}
         moyennes_classe_matiere: dict[uuid.UUID, float] = {}
         for matiere_id in matiere_ids:
             notes_matiere = [n for n in notes if n.matiere_id == matiere_id]
@@ -449,7 +462,7 @@ class PedagogieService:
             .all()
         )
 
-        matiere_ids = {n.matiere_id for n in notes}
+        matiere_ids = {n.matiere_id for n in notes if n.matiere_id is not None}
         moyennes_par_matiere = [
             MoyenneMatiere(
                 matiere_id=mid,
@@ -598,6 +611,48 @@ class PedagogieService:
 
     # ── Helpers privés ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _uses_sequence_for_cycle(cycle: Cycle) -> bool:
+        return cycle.type_evaluation == "chiffree" and cycle.nom == _CYCLE_1ER
+
+    def _resolve_note_links(
+        self,
+        item: NoteCreate,
+        cycle: Cycle,
+    ) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+        """Détermine periode_id / sequence_id selon le type d'évaluation du cycle."""
+        if self._uses_sequence_for_cycle(cycle):
+            if item.sequence_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="sequence_id requis pour le 1er Cycle",
+                )
+            if item.periode_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="periode_id non autorisé pour le 1er Cycle",
+                )
+            sequence = self._get_sequence(item.sequence_id)
+            if sequence.cycle_id != cycle.id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="La séquence ne correspond pas au cycle de la classe",
+                )
+            return None, sequence.id
+
+        if item.periode_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="periode_id requis pour ce cycle",
+            )
+        if item.sequence_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="sequence_id non autorisé pour ce cycle",
+            )
+        self._get_periode(item.periode_id)
+        return item.periode_id, None
+
     def _validate_note_item(
         self,
         item: NoteCreate,
@@ -723,6 +778,22 @@ class PedagogieService:
                 detail="Période introuvable",
             )
         return periode
+
+    def _get_sequence(self, sequence_id: uuid.UUID) -> SequenceEvaluation:
+        sequence = (
+            self.db.query(SequenceEvaluation)
+            .filter(
+                SequenceEvaluation.id == sequence_id,
+                SequenceEvaluation.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if sequence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Séquence d'évaluation introuvable",
+            )
+        return sequence
 
     def _get_salle(self, classe_id: uuid.UUID) -> Salle:
         salle = (

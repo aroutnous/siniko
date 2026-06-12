@@ -19,6 +19,7 @@ from app.models.etablissement import (
     Matiere,
     Periode,
     Salle,
+    SequenceEvaluation,
 )
 from app.models.valeur_systeme import ValeurSysteme
 from app.models.pedagogie import Note
@@ -46,6 +47,9 @@ from app.schemas.etablissement import (
     PeriodeCreate,
     PeriodeResponse,
     PeriodeUpdate,
+    SequenceEvaluationCreate,
+    SequenceEvaluationResponse,
+    SequenceEvaluationUpdate,
     SalleCreate,
     SalleEffectifResponse,
     SalleResponse,
@@ -499,6 +503,94 @@ class EtablissementService:
         self.db.delete(periode)
         self.db.commit()
         self._audit("establishment.periode.delete", "periodes", periode_id)
+
+    # ── Séquences d'évaluation ──────────────────────────────────────────────
+
+    def creer_sequence(self, data: SequenceEvaluationCreate) -> SequenceEvaluationResponse:
+        self._get_cycle(data.cycle_id)
+        self._get_periode(data.periode_id)
+        if (
+            data.date_debut is not None
+            and data.date_fin is not None
+            and data.date_fin < data.date_debut
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="date_fin doit être postérieure à date_debut",
+            )
+        sequence = SequenceEvaluation(tenant_id=self.tenant_id, **data.model_dump())
+        self.db.add(sequence)
+        self.db.commit()
+        self.db.refresh(sequence)
+        self._audit("establishment.sequence.create", "sequences_evaluation", sequence.id)
+        return SequenceEvaluationResponse.model_validate(sequence)
+
+    def lister_sequences(
+        self,
+        cycle_id: uuid.UUID | None = None,
+        periode_id: uuid.UUID | None = None,
+    ) -> list[SequenceEvaluationResponse]:
+        query = self.db.query(SequenceEvaluation).filter(
+            SequenceEvaluation.tenant_id == self.tenant_id,
+        )
+        if cycle_id is not None:
+            self._get_cycle(cycle_id)
+            query = query.filter(SequenceEvaluation.cycle_id == cycle_id)
+        if periode_id is not None:
+            self._get_periode(periode_id)
+            query = query.filter(SequenceEvaluation.periode_id == periode_id)
+        sequences = query.order_by(
+            SequenceEvaluation.ordre,
+            SequenceEvaluation.nom,
+        ).all()
+        return [
+            SequenceEvaluationResponse.model_validate(sequence) for sequence in sequences
+        ]
+
+    def modifier_sequence(
+        self,
+        sequence_id: uuid.UUID,
+        data: SequenceEvaluationUpdate,
+    ) -> SequenceEvaluationResponse:
+        sequence = self._get_sequence(sequence_id)
+        payload = data.model_dump(exclude_unset=True)
+        if "cycle_id" in payload and payload["cycle_id"] is not None:
+            self._get_cycle(payload["cycle_id"])
+        if "periode_id" in payload and payload["periode_id"] is not None:
+            self._get_periode(payload["periode_id"])
+        date_debut = payload.get("date_debut", sequence.date_debut)
+        date_fin = payload.get("date_fin", sequence.date_fin)
+        if date_debut is not None and date_fin is not None and date_fin < date_debut:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="date_fin doit être postérieure à date_debut",
+            )
+        for field, value in payload.items():
+            setattr(sequence, field, value)
+        self.db.commit()
+        self.db.refresh(sequence)
+        self._audit("establishment.sequence.update", "sequences_evaluation", sequence.id)
+        return SequenceEvaluationResponse.model_validate(sequence)
+
+    def supprimer_sequence(self, sequence_id: uuid.UUID) -> None:
+        sequence = self._get_sequence(sequence_id)
+        has_notes = (
+            self.db.query(Note)
+            .filter(
+                Note.tenant_id == self.tenant_id,
+                Note.sequence_id == sequence_id,
+            )
+            .count()
+            > 0
+        )
+        if has_notes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Impossible de supprimer une séquence liée à des notes",
+            )
+        self.db.delete(sequence)
+        self.db.commit()
+        self._audit("establishment.sequence.delete", "sequences_evaluation", sequence_id)
 
     # ── Matières ────────────────────────────────────────────────────────────
 
@@ -1035,6 +1127,22 @@ class EtablissementService:
                 detail="Période introuvable",
             )
         return periode
+
+    def _get_sequence(self, sequence_id: uuid.UUID) -> SequenceEvaluation:
+        sequence = (
+            self.db.query(SequenceEvaluation)
+            .filter(
+                SequenceEvaluation.id == sequence_id,
+                SequenceEvaluation.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if sequence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Séquence d'évaluation introuvable",
+            )
+        return sequence
 
     def _get_matiere(self, matiere_id: uuid.UUID) -> Matiere:
         matiere = (

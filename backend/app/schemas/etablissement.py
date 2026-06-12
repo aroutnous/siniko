@@ -220,6 +220,37 @@ class PeriodeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SequenceEvaluationCreate(BaseModel):
+    cycle_id: uuid.UUID
+    periode_id: uuid.UUID
+    nom: str = Field(..., min_length=1, max_length=100)
+    date_debut: date | None = None
+    date_fin: date | None = None
+    ordre: int = Field(default=0, ge=0)
+
+
+class SequenceEvaluationUpdate(BaseModel):
+    cycle_id: uuid.UUID | None = None
+    periode_id: uuid.UUID | None = None
+    nom: str | None = Field(default=None, min_length=1, max_length=100)
+    date_debut: date | None = None
+    date_fin: date | None = None
+    ordre: int | None = Field(default=None, ge=0)
+
+
+class SequenceEvaluationResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    cycle_id: uuid.UUID
+    periode_id: uuid.UUID
+    nom: str
+    date_debut: date | None
+    date_fin: date | None
+    ordre: int
+
+    model_config = {"from_attributes": True}
+
+
 class MatiereCreate(BaseModel):
     classe_id: uuid.UUID | None = None
     nom: str = Field(..., min_length=1, max_length=100)

@@ -16,11 +16,18 @@ TypeBulletin = Literal["chiffre", "competences"]
 class NoteCreate(BaseModel):
     eleve_id: uuid.UUID
     matiere_id: uuid.UUID
-    periode_id: uuid.UUID
+    periode_id: uuid.UUID | None = None
+    sequence_id: uuid.UUID | None = None
     classe_id: uuid.UUID
     valeur: Decimal | None = Field(default=None, ge=0, le=20)
     valeur_qualitative: StatutCompetence | None = None
     appreciation: str | None = None
+
+    @model_validator(mode="after")
+    def validate_periode_ou_sequence(self) -> "NoteCreate":
+        if self.periode_id is None and self.sequence_id is None:
+            raise ValueError("periode_id ou sequence_id requis")
+        return self
 
     @model_validator(mode="after")
     def validate_valeur_xor(self) -> "NoteCreate":
@@ -55,8 +62,9 @@ class NoteResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     eleve_id: uuid.UUID
-    matiere_id: uuid.UUID
-    periode_id: uuid.UUID
+    matiere_id: uuid.UUID | None
+    periode_id: uuid.UUID | None
+    sequence_id: uuid.UUID | None
     classe_id: uuid.UUID
     valeur: Decimal | None
     valeur_qualitative: str | None

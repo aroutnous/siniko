@@ -31,6 +31,9 @@ from app.schemas.etablissement import (
     PeriodeCreate,
     PeriodeResponse,
     PeriodeUpdate,
+    SequenceEvaluationCreate,
+    SequenceEvaluationResponse,
+    SequenceEvaluationUpdate,
     SalleCreate,
     SalleEffectifResponse,
     SalleResponse,
@@ -539,6 +542,61 @@ def delete_periode(
     user: EstablishmentManager,
 ) -> None:
     _service(db, user, request).delete_periode(periode_id)
+
+
+# ── Séquences d'évaluation ──────────────────────────────────────────────────
+
+
+@router.get("/sequences-evaluation", response_model=list[SequenceEvaluationResponse])
+def list_sequences_evaluation(
+    request: Request,
+    db: DbSession,
+    user: EstablishmentManager,
+    cycle_id: uuid.UUID | None = Query(default=None),
+    periode_id: uuid.UUID | None = Query(default=None),
+) -> list[SequenceEvaluationResponse]:
+    return _service(db, user, request).lister_sequences(cycle_id, periode_id)
+
+
+@router.post(
+    "/sequences-evaluation",
+    response_model=SequenceEvaluationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_sequence_evaluation(
+    body: SequenceEvaluationCreate,
+    request: Request,
+    db: DbSession,
+    user: EstablishmentManager,
+) -> SequenceEvaluationResponse:
+    return _service(db, user, request).creer_sequence(body)
+
+
+@router.put(
+    "/sequences-evaluation/{sequence_id}",
+    response_model=SequenceEvaluationResponse,
+)
+def update_sequence_evaluation(
+    sequence_id: uuid.UUID,
+    body: SequenceEvaluationUpdate,
+    request: Request,
+    db: DbSession,
+    user: EstablishmentManager,
+) -> SequenceEvaluationResponse:
+    return _service(db, user, request).modifier_sequence(sequence_id, body)
+
+
+@router.delete(
+    "/sequences-evaluation/{sequence_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_sequence_evaluation(
+    sequence_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: EstablishmentManager,
+) -> None:
+    _service(db, user, request).supprimer_sequence(sequence_id)
 
 
 # ── Matières ────────────────────────────────────────────────────────────────

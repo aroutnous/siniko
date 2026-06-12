@@ -26,6 +26,9 @@ class Cycle(TenantScopedModel):
     valeur_systeme_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     classes: Mapped[list["Classe"]] = relationship(back_populates="cycle")
+    sequences_evaluation: Mapped[list["SequenceEvaluation"]] = relationship(
+        back_populates="cycle",
+    )
 
 
 class Classe(TenantScopedModel):
@@ -76,6 +79,35 @@ class Periode(TenantScopedModel):
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     annee_scolaire: Mapped["AnneeScolaire"] = relationship(back_populates="periodes")
+    sequences_evaluation: Mapped[list["SequenceEvaluation"]] = relationship(
+        back_populates="periode",
+    )
+
+
+class SequenceEvaluation(TenantScopedModel):
+    """Séquence d'évaluation (ex. composition mensuelle) rattachée à une période."""
+
+    __tablename__ = "sequences_evaluation"
+
+    cycle_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cycles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    periode_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("periodes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    nom: Mapped[str] = mapped_column(String(100), nullable=False)
+    date_debut: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_fin: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    cycle: Mapped["Cycle"] = relationship(back_populates="sequences_evaluation")
+    periode: Mapped["Periode"] = relationship(back_populates="sequences_evaluation")
 
 
 class Salle(TenantScopedModel):

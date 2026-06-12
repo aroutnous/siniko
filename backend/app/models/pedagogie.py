@@ -28,10 +28,16 @@ class Note(TenantScopedModel):
         nullable=True,
         index=True,
     )
-    periode_id: Mapped[uuid.UUID] = mapped_column(
+    periode_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("periodes.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    sequence_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sequences_evaluation.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     classe_id: Mapped[uuid.UUID] = mapped_column(
@@ -47,6 +53,10 @@ class Note(TenantScopedModel):
         UUID(as_uuid=True),
         ForeignKey("utilisateurs.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    sequence: Mapped["SequenceEvaluation | None"] = relationship(  # noqa: F821
+        "SequenceEvaluation",
     )
 
 
