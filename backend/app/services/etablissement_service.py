@@ -7,9 +7,10 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.eleve import Inscription
+from app.models.enseignant import Enseignant
 from app.models.finance import FraisScolaire
 from app.models.etablissement import (
     AnneeScolaire,
@@ -503,49 +504,62 @@ class EtablissementService:
 
     def create_matiere(self, data: MatiereCreate) -> MatiereResponse:
         self._get_classe(data.classe_id)
+        self._validate_matiere_enseignants(
+            data.enseignant_principal_id,
+            data.enseignant_assistant_id,
+        )
         matiere = Matiere(
             tenant_id=self.tenant_id,
             **data.model_dump(exclude={"niveau_id"}),
         )
         self.db.add(matiere)
         self.db.commit()
-        self.db.refresh(matiere)
         self._audit("establishment.matiere.create", "matieres", matiere.id)
-        return MatiereResponse.model_validate(matiere)
+        return self._matiere_to_response(self._get_matiere_with_relations(matiere.id))
 
     def list_matieres(self, classe_id: uuid.UUID | None = None) -> list[MatiereResponse]:
-        query = self.db.query(Matiere).filter(Matiere.tenant_id == self.tenant_id)
+        query = (
+            self.db.query(Matiere)
+            .options(
+                joinedload(Matiere.classe).joinedload(Classe.cycle),
+                joinedload(Matiere.enseignant_principal),
+                joinedload(Matiere.enseignant_assistant),
+            )
+            .join(Classe, Matiere.classe_id == Classe.id)
+            .join(Cycle, Classe.cycle_id == Cycle.id)
+            .filter(Matiere.tenant_id == self.tenant_id)
+        )
         if classe_id is not None:
             self._get_classe(classe_id)
             query = query.filter(Matiere.classe_id == classe_id)
-        matieres = query.order_by(Matiere.nom).all()
-        return [MatiereResponse.model_validate(matiere) for matiere in matieres]
+        matieres = query.order_by(
+            Cycle.ordre,
+            Classe.ordre,
+            Matiere.ordre,
+            Matiere.nom,
+        ).all()
+        return [self._matiere_to_response(matiere) for matiere in matieres]
 
     def get_matiere(self, matiere_id: uuid.UUID) -> MatiereResponse:
-        return MatiereResponse.model_validate(self._get_matiere(matiere_id))
+        return self._matiere_to_response(self._get_matiere_with_relations(matiere_id))
 
     def update_matiere(self, matiere_id: uuid.UUID, data: MatiereUpdate) -> MatiereResponse:
         matiere = self._get_matiere(matiere_id)
-        for field, value in data.model_dump(exclude_unset=True).items():
+        updates = data.model_dump(exclude_unset=True)
+        if "classe_id" in updates and updates["classe_id"] is not None:
+            self._get_classe(updates["classe_id"])
+        principal_id = updates.get("enseignant_principal_id", matiere.enseignant_principal_id)
+        assistant_id = updates.get("enseignant_assistant_id", matiere.enseignant_assistant_id)
+        if "enseignant_principal_id" in updates or "enseignant_assistant_id" in updates:
+            self._validate_matiere_enseignants(principal_id, assistant_id)
+        for field, value in updates.items():
             setattr(matiere, field, value)
         self.db.commit()
-        self.db.refresh(matiere)
         self._audit("establishment.matiere.update", "matieres", matiere.id)
-        return MatiereResponse.model_validate(matiere)
+        return self._matiere_to_response(self._get_matiere_with_relations(matiere.id))
 
     def delete_matiere(self, matiere_id: uuid.UUID) -> None:
         matiere = self._get_matiere(matiere_id)
-        has_notes = (
-            self.db.query(Note)
-            .filter(Note.tenant_id == self.tenant_id, Note.matiere_id == matiere_id)
-            .count()
-            > 0
-        )
-        if has_notes:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Impossible de supprimer une matière avec des notes",
-            )
         self.db.delete(matiere)
         self.db.commit()
         self._audit("establishment.matiere.delete", "matieres", matiere_id)
@@ -573,8 +587,13 @@ class EtablissementService:
         )
         matieres = (
             self.db.query(Matiere)
+            .options(
+                joinedload(Matiere.classe).joinedload(Classe.cycle),
+                joinedload(Matiere.enseignant_principal),
+                joinedload(Matiere.enseignant_assistant),
+            )
             .filter(Matiere.tenant_id == self.tenant_id)
-            .order_by(Matiere.nom)
+            .order_by(Matiere.ordre, Matiere.nom)
             .all()
         )
         annees = self.list_annees_scolaires()
@@ -603,7 +622,7 @@ class EtablissementService:
                             for salle in salles_by_classe.get(classe.id, [])
                         ],
                         matieres=[
-                            MatiereResponse.model_validate(matiere)
+                            self._matiere_to_response(matiere)
                             for matiere in matieres_by_classe.get(classe.id, [])
                         ],
                     )
@@ -1028,3 +1047,84 @@ class EtablissementService:
                 detail="Matière introuvable",
             )
         return matiere
+
+    def _get_matiere_with_relations(self, matiere_id: uuid.UUID) -> Matiere:
+        matiere = (
+            self.db.query(Matiere)
+            .options(
+                joinedload(Matiere.classe).joinedload(Classe.cycle),
+                joinedload(Matiere.enseignant_principal),
+                joinedload(Matiere.enseignant_assistant),
+            )
+            .filter(Matiere.id == matiere_id, Matiere.tenant_id == self.tenant_id)
+            .first()
+        )
+        if matiere is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Matière introuvable",
+            )
+        return matiere
+
+    def _get_enseignant(self, enseignant_id: uuid.UUID) -> Enseignant:
+        enseignant = (
+            self.db.query(Enseignant)
+            .filter(
+                Enseignant.id == enseignant_id,
+                Enseignant.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if enseignant is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Enseignant introuvable",
+            )
+        return enseignant
+
+    def _validate_matiere_enseignants(
+        self,
+        principal_id: uuid.UUID | None,
+        assistant_id: uuid.UUID | None,
+    ) -> None:
+        if principal_id is not None:
+            self._get_enseignant(principal_id)
+        if assistant_id is not None:
+            self._get_enseignant(assistant_id)
+
+    @staticmethod
+    def _enseignant_display_name(enseignant: Enseignant | None) -> str | None:
+        if enseignant is None:
+            return None
+        return f"{enseignant.prenom} {enseignant.nom}".strip()
+
+    def _matiere_to_response(self, matiere: Matiere) -> MatiereResponse:
+        classe = matiere.classe
+        cycle = classe.cycle if classe is not None else None
+        note_max_effective = matiere.note_max
+        if note_max_effective is None and cycle is not None:
+            note_max_effective = cycle.note_max
+        return MatiereResponse(
+            id=matiere.id,
+            tenant_id=matiere.tenant_id,
+            classe_id=matiere.classe_id,
+            nom=matiere.nom,
+            coefficient=matiere.coefficient,
+            note_max=matiere.note_max,
+            note_max_effective=note_max_effective,
+            est_obligatoire=matiere.est_obligatoire,
+            est_domaine_competence=matiere.est_domaine_competence,
+            ordre=matiere.ordre,
+            est_active=matiere.est_active,
+            enseignant_principal_id=matiere.enseignant_principal_id,
+            enseignant_assistant_id=matiere.enseignant_assistant_id,
+            cycle_id=cycle.id if cycle is not None else None,
+            cycle_nom=cycle.nom if cycle is not None else None,
+            classe_nom=classe.nom if classe is not None else None,
+            enseignant_principal_nom=self._enseignant_display_name(
+                matiere.enseignant_principal
+            ),
+            enseignant_assistant_nom=self._enseignant_display_name(
+                matiere.enseignant_assistant
+            ),
+        )

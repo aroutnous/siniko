@@ -185,6 +185,34 @@ export function WizardEtablissementPage(): React.JSX.Element {
     return list;
   }, [classesQueries.data, cyclesSelectionnes, classesSelectionnees]);
 
+  const allWizardClassKeys = useMemo(() => {
+    const data = classesQueries.data ?? {};
+    const keys: string[] = [];
+    for (const cycle of cyclesSelectionnes) {
+      for (const row of data[cycle] ?? []) {
+        keys.push(classeKey(cycle, row.valeur));
+      }
+    }
+    return keys;
+  }, [classesQueries.data, cyclesSelectionnes]);
+
+  const allClassesSelected = useMemo(
+    () =>
+      allWizardClassKeys.length > 0 &&
+      allWizardClassKeys.every((key) => classesSelectionnees.has(key)),
+    [allWizardClassKeys, classesSelectionnees],
+  );
+
+  const getCycleClassKeys = (cycle: string): string[] =>
+    (classesQueries.data?.[cycle] ?? []).map((classe) =>
+      classeKey(cycle, classe.valeur),
+    );
+
+  const isCycleFullySelected = (cycle: string): boolean => {
+    const keys = getCycleClassKeys(cycle);
+    return keys.length > 0 && keys.every((key) => classesSelectionnees.has(key));
+  };
+
   useEffect(() => {
     if (step !== 6) return;
     setCycleNotation((prev) => {
@@ -269,6 +297,20 @@ export function WizardEtablissementPage(): React.JSX.Element {
     }
   };
 
+  const ensureSalleDrafts = (keys: string[]): void => {
+    if (keys.length === 0) return;
+    setSalles((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const key of keys) {
+        if (next[key]?.length) continue;
+        next[key] = [{ localId: newLocalId(), nom_salle: "", capacite: "" }];
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  };
+
   const toggleClasse = (cycle: string, classe: string, checked: boolean): void => {
     const key = classeKey(cycle, classe);
     setClassesSelectionnees((prev) => {
@@ -278,13 +320,36 @@ export function WizardEtablissementPage(): React.JSX.Element {
       return next;
     });
     if (checked) {
-      setSalles((prev) => {
-        if (prev[key]?.length) return prev;
-        return {
-          ...prev,
-          [key]: [{ localId: newLocalId(), nom_salle: "", capacite: "" }],
-        };
-      });
+      ensureSalleDrafts([key]);
+    }
+  };
+
+  const toggleAllClasses = (select: boolean): void => {
+    setClassesSelectionnees((prev) => {
+      const next = new Set(prev);
+      for (const key of allWizardClassKeys) {
+        if (select) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+    if (select) {
+      ensureSalleDrafts(allWizardClassKeys);
+    }
+  };
+
+  const toggleAllClassesForCycle = (cycle: string, select: boolean): void => {
+    const keys = getCycleClassKeys(cycle);
+    setClassesSelectionnees((prev) => {
+      const next = new Set(prev);
+      for (const key of keys) {
+        if (select) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+    if (select) {
+      ensureSalleDrafts(keys);
     }
   };
 
@@ -588,9 +653,41 @@ export function WizardEtablissementPage(): React.JSX.Element {
               ) : classesQueries.isLoading ? (
                 <LoadingSpinner label="Chargement des classes…" />
               ) : (
-                [...cyclesSelectionnes].map((cycle) => (
+                <>
+                  {allWizardClassKeys.length > 0 ? (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAllClasses(!allClassesSelected)}
+                      >
+                        {allClassesSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                      </Button>
+                    </div>
+                  ) : null}
+                  {[...cyclesSelectionnes].map((cycle) => {
+                    const cycleFullySelected = isCycleFullySelected(cycle);
+                    const cycleClassKeys = getCycleClassKeys(cycle);
+                    return (
                   <div key={cycle}>
-                    <h3 className="mb-2 font-medium">{displayCycleLabel(cycle)}</h3>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-medium">{displayCycleLabel(cycle)}</h3>
+                      {cycleClassKeys.length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            toggleAllClassesForCycle(cycle, !cycleFullySelected)
+                          }
+                        >
+                          {cycleFullySelected
+                            ? "Tout désélectionner"
+                            : "Tout sélectionner"}
+                        </Button>
+                      ) : null}
+                    </div>
                     <div className="space-y-2">
                       {(classesQueries.data?.[cycle] ?? []).map((classe) => {
                         const key = classeKey(cycle, classe.valeur);
@@ -611,7 +708,9 @@ export function WizardEtablissementPage(): React.JSX.Element {
                       })}
                     </div>
                   </div>
-                ))
+                    );
+                  })}
+                </>
               )}
             </div>
           ) : null}

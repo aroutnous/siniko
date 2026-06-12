@@ -286,8 +286,19 @@ export interface Matiere {
   classe_id: string;
   nom: string;
   coefficient: number;
+  note_max: number | null;
+  note_max_effective?: number | null;
+  est_obligatoire: boolean;
+  est_domaine_competence: boolean;
+  ordre: number;
   est_active: boolean;
-  est_domaine_competence?: boolean;
+  enseignant_principal_id: string | null;
+  enseignant_assistant_id: string | null;
+  cycle_id?: string | null;
+  cycle_nom?: string | null;
+  classe_nom?: string | null;
+  enseignant_principal_nom?: string | null;
+  enseignant_assistant_nom?: string | null;
 }
 
 export interface SalleEffectif {

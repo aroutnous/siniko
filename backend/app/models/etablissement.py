@@ -114,9 +114,32 @@ class Matiere(TenantScopedModel):
     )
     nom: Mapped[str] = mapped_column(String(100), nullable=False)
     coefficient: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=1)
-    est_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    note_max: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    est_obligatoire: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     est_domaine_competence: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    est_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    enseignant_principal_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("enseignants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    enseignant_assistant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("enseignants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     classe: Mapped["Classe"] = relationship(back_populates="matieres")
+    enseignant_principal: Mapped["Enseignant | None"] = relationship(  # noqa: F821
+        "Enseignant",
+        foreign_keys=[enseignant_principal_id],
+    )
+    enseignant_assistant: Mapped["Enseignant | None"] = relationship(  # noqa: F821
+        "Enseignant",
+        foreign_keys=[enseignant_assistant_id],
+    )

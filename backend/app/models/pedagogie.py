@@ -22,10 +22,10 @@ class Note(TenantScopedModel):
         nullable=False,
         index=True,
     )
-    matiere_id: Mapped[uuid.UUID] = mapped_column(
+    matiere_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("matieres.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("matieres.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     periode_id: Mapped[uuid.UUID] = mapped_column(

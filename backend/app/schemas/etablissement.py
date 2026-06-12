@@ -224,8 +224,13 @@ class MatiereCreate(BaseModel):
     classe_id: uuid.UUID | None = None
     nom: str = Field(..., min_length=1, max_length=100)
     coefficient: Decimal = Field(default=Decimal("1.00"), gt=0)
-    est_active: bool = True
+    note_max: Decimal | None = Field(default=None, gt=0)
+    est_obligatoire: bool = True
     est_domaine_competence: bool = False
+    ordre: int = Field(default=0, ge=0)
+    est_active: bool = True
+    enseignant_principal_id: uuid.UUID | None = None
+    enseignant_assistant_id: uuid.UUID | None = None
     niveau_id: uuid.UUID | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
@@ -238,10 +243,16 @@ class MatiereCreate(BaseModel):
 
 
 class MatiereUpdate(BaseModel):
+    classe_id: uuid.UUID | None = None
     nom: str | None = Field(default=None, min_length=1, max_length=100)
     coefficient: Decimal | None = Field(default=None, gt=0)
-    est_active: bool | None = None
+    note_max: Decimal | None = Field(default=None, gt=0)
+    est_obligatoire: bool | None = None
     est_domaine_competence: bool | None = None
+    ordre: int | None = Field(default=None, ge=0)
+    est_active: bool | None = None
+    enseignant_principal_id: uuid.UUID | None = None
+    enseignant_assistant_id: uuid.UUID | None = None
 
 
 class MatiereResponse(BaseModel):
@@ -250,8 +261,19 @@ class MatiereResponse(BaseModel):
     classe_id: uuid.UUID
     nom: str
     coefficient: Decimal
-    est_active: bool
+    note_max: Decimal | None
+    note_max_effective: Decimal | None = None
+    est_obligatoire: bool
     est_domaine_competence: bool
+    ordre: int
+    est_active: bool
+    enseignant_principal_id: uuid.UUID | None
+    enseignant_assistant_id: uuid.UUID | None
+    cycle_id: uuid.UUID | None = None
+    cycle_nom: str | None = None
+    classe_nom: str | None = None
+    enseignant_principal_nom: str | None = None
+    enseignant_assistant_nom: str | None = None
 
     model_config = {"from_attributes": True}
 
