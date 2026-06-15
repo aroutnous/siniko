@@ -4,7 +4,7 @@ import { MentionBadge } from "@/components/pedagogie/MentionBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatStatutCompetence } from "@/lib/pedagogie-utils";
+import { formatDecimal, formatStatutCompetence } from "@/lib/pedagogie-utils";
 import type { Bulletin, StatutBulletin } from "@/types";
 
 const STATUT_CONFIG: Record<
@@ -52,7 +52,7 @@ export function BulletinCard({
               <Badge variant="muted">Bulletin compétences</Badge>
             ) : (
               <>
-                <span>Moy. {bulletin.moyenne_generale?.toFixed(2) ?? "—"}</span>
+                <span>Moy. {formatDecimal(bulletin.moyenne_generale)}</span>
                 <span>
                   Rang {bulletin.rang ?? "—"}/{bulletin.effectif_classe ?? "—"}
                 </span>

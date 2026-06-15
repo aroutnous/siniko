@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from app.models.enums import StatutBulletin
 
@@ -120,6 +120,10 @@ class BulletinResponse(BaseModel):
     lignes: list[BulletinLigneResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("moyenne_generale")
+    def serialize_moyenne_generale(self, value: Decimal | None) -> float | None:
+        return float(value) if value is not None else None
 
 
 class ClassementEleve(BaseModel):

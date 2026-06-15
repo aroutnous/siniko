@@ -66,6 +66,13 @@ class EleveResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EleveListResponse(EleveResponse):
+    """Élève avec libellé de salle pour les listes."""
+
+    salle_nom: str | None = None
+    salle_id: uuid.UUID | None = None
+
+
 class EleveInscrireResponse(BaseModel):
     eleve: EleveResponse
     inscription: "InscriptionResponse"
@@ -90,6 +97,22 @@ class InscriptionResponse(BaseModel):
     updated_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class SalleInscriptionBrief(BaseModel):
+    """Données salle pour l'affichage dans le dossier élève."""
+
+    id: uuid.UUID
+    nom: str
+    nom_salle: str | None
+    niveau_nom: str | None = None
+
+
+class InscriptionDossierResponse(InscriptionResponse):
+    """Inscription enrichie avec le libellé complet de la salle."""
+
+    salle_nom: str | None = None
+    salle: SalleInscriptionBrief | None = None
 
 
 class AbsenceCreate(BaseModel):
@@ -127,8 +150,9 @@ class TransfertRequest(BaseModel):
 
 class DossierEleveResponse(BaseModel):
     eleve: EleveResponse
-    inscriptions: list[InscriptionResponse]
+    inscriptions: list[InscriptionDossierResponse]
     absences: list[AbsenceResponse]
+    salle_active_nom: str | None = None
 
 
 class AbsenceStatistiquesResponse(BaseModel):

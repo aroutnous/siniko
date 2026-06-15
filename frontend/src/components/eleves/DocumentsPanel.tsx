@@ -19,8 +19,8 @@ type DocType = "carte" | "attestation" | "certificat";
 const DOCS: { type: DocType; label: string; icon: React.ComponentType<{ className?: string }> }[] =
   [
     { type: "carte", label: "Carte scolaire", icon: IdCard },
-    { type: "attestation", label: "Attestation", icon: FileText },
-    { type: "certificat", label: "Certificat", icon: Download },
+    { type: "attestation", label: "Attestation de scolarité", icon: FileText },
+    { type: "certificat", label: "Certificat de scolarité", icon: Download },
   ];
 
 export function DocumentsPanel({

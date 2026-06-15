@@ -1,43 +1,81 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft } from "lucide-react";
+import {
+  Archive,
+  ArrowLeftRight,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { DocumentsPanel } from "@/components/eleves/DocumentsPanel";
 import { EleveCard } from "@/components/eleves/EleveCard";
+import {
+  EleveFormModal,
+  eleveToForm,
+  formToPayload,
+  type EleveFormValues,
+} from "@/components/eleves/EleveFormModal";
+import { EleveNotesBulletinsTab } from "@/components/eleves/EleveNotesBulletinsTab";
+import { ElevePaiementsTab } from "@/components/eleves/ElevePaiementsTab";
 import { TransfertModal } from "@/components/eleves/TransfertModal";
 import { FormModal } from "@/components/etablissement/FormModal";
+import { EleveStatutBadge } from "@/components/eleves/EleveStatutBadge";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useElevesAccess } from "@/hooks/useElevesAccess";
 import { api, getErrorMessage } from "@/lib/api";
+import { ROUTES } from "@/lib/constants";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import {
+  buildNiveauxMap,
   getActiveInscription,
+  getDossierSalleNom,
   getEleveClasseId,
-  resolveClasseNom,
+  inscriptionSalleLabel,
+  resolveSalleNom,
 } from "@/lib/eleve-utils";
-import { ROUTES } from "@/lib/constants";
 import { useToastStore } from "@/stores/toastStore";
-import type { Absence, AnneeScolaire, Classe, DossierEleve, Inscription } from "@/types";
+import type {
+  Absence,
+  AnneeScolaire,
+  Classe,
+  ClasseNiveau,
+  DossierEleve,
+  Eleve,
+  Inscription,
+} from "@/types";
+
+const STATUT_INSCRIPTION: Record<Inscription["statut"], string> = {
+  inscrit: "Inscrit",
+  transfere: "Transféré",
+  abandonne: "Abandonné",
+};
 
 export function EleveDossierPage(): React.JSX.Element {
   const { eleveId } = useParams<{ eleveId: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToastStore((s) => s.show);
-  const { canManage, canManageAbsences } = useElevesAccess();
+  const { canManage, canManageAbsences, canDelete, canPrint } = useElevesAccess();
+
   const [transferOpen, setTransferOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [justifyOpen, setJustifyOpen] = useState(false);
   const [justifyMotif, setJustifyMotif] = useState("");
   const [selectedAbsence, setSelectedAbsence] = useState<Absence | null>(null);
+  const [form, setForm] = useState<EleveFormValues | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["eleve-dossier", eleveId],
@@ -50,10 +88,18 @@ export function EleveDossierPage(): React.JSX.Element {
     enabled: Boolean(eleveId),
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.salles);
+      return data;
+    },
+  });
+
+  const { data: niveaux = [] } = useQuery({
+    queryKey: ["classes-niveau"],
+    queryFn: async () => {
+      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
       return data;
     },
   });
@@ -64,6 +110,57 @@ export function EleveDossierPage(): React.JSX.Element {
       const { data } = await api.get<AnneeScolaire[]>(ETABLISSEMENT_API.annees);
       return data;
     },
+  });
+
+  const { data: anneeActive } = useQuery({
+    queryKey: ["annee-active"],
+    queryFn: async () => {
+      const { data } = await api.get<AnneeScolaire>(ETABLISSEMENT_API.anneeActive);
+      return data;
+    },
+    retry: false,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: EleveFormValues) => {
+      const { data: eleve } = await api.put<Eleve>(
+        ELEVES_API.detail(eleveId!),
+        formToPayload(payload),
+      );
+      return eleve;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["eleve-dossier", eleveId] });
+      void queryClient.invalidateQueries({ queryKey: ["eleves"] });
+      toast("Informations mises à jour");
+      setEditOpen(false);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<Eleve>(ELEVES_API.archiver(eleveId!));
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["eleve-dossier", eleveId] });
+      void queryClient.invalidateQueries({ queryKey: ["eleves"] });
+      toast("Élève archivé");
+      setArchiveOpen(false);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(ELEVES_API.detail(eleveId!));
+    },
+    onSuccess: () => {
+      toast("Élève supprimé");
+      navigate(ROUTES.eleves);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
   });
 
   const justifyMutation = useMutation({
@@ -90,10 +187,15 @@ export function EleveDossierPage(): React.JSX.Element {
 
   const activeInscription = getActiveInscription(data.inscriptions);
   const classeId = getEleveClasseId(data);
-  const classeNom = resolveClasseNom(classeId, classes);
+  const niveauxMap = buildNiveauxMap(niveaux);
+  const fromApiSalle = getDossierSalleNom(data);
+  const salleNom =
+    fromApiSalle !== "—"
+      ? fromApiSalle
+      : resolveSalleNom(classeId, salles, niveauxMap);
+  const eleveNom = `${data.eleve.nom} ${data.eleve.prenom}`;
 
   const anneeMap = new Map(annees.map((a) => [a.id, a.libelle]));
-  const classeMap = new Map(classes.map((c) => [c.id, c.nom]));
 
   const historiqueColumns: DataTableColumn<Inscription>[] = [
     {
@@ -103,11 +205,19 @@ export function EleveDossierPage(): React.JSX.Element {
     },
     {
       key: "classe",
-      header: "Classe",
-      render: (r) => classeMap.get(r.classe_id) ?? r.classe_id,
+      header: "Salle",
+      render: (r) => inscriptionSalleLabel(r, salles, niveauxMap),
     },
     { key: "date", header: "Date inscription", render: (r) => r.date_inscription },
-    { key: "statut", header: "Statut", render: (r) => r.statut },
+    {
+      key: "statut",
+      header: "Statut",
+      render: (r) => (
+        <Badge variant={r.statut === "inscrit" ? "success" : "muted"}>
+          {STATUT_INSCRIPTION[r.statut]}
+        </Badge>
+      ),
+    },
   ];
 
   const absenceColumns: DataTableColumn<Absence>[] = [
@@ -150,6 +260,11 @@ export function EleveDossierPage(): React.JSX.Element {
     },
   ];
 
+  const openEdit = (): void => {
+    setForm(eleveToForm(data.eleve));
+    setEditOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -157,11 +272,31 @@ export function EleveDossierPage(): React.JSX.Element {
         description="Informations, historique et documents"
         breadcrumb="Élèves"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {canManage ? (
               <Button variant="outline" onClick={() => setTransferOpen(true)}>
-                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                <ArrowLeftRight className="mr-2 h-4 w-4" />
                 Transférer
+              </Button>
+            ) : null}
+            {canManage ? (
+              <>
+                <Button variant="outline" onClick={openEdit}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Modifier
+                </Button>
+                {data.eleve.statut === "actif" ? (
+                  <Button variant="outline" onClick={() => setArchiveOpen(true)}>
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archiver
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
+            {canDelete ? (
+              <Button variant="outline" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Supprimer
               </Button>
             ) : null}
             <Link to={ROUTES.eleves}>
@@ -171,24 +306,34 @@ export function EleveDossierPage(): React.JSX.Element {
         }
       />
 
-      <EleveCard eleve={data.eleve} classeNom={classeNom} />
+      <EleveCard eleve={data.eleve} classeNom={salleNom} />
 
       <Tabs defaultValue="informations">
-        <TabsList>
+        <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="informations">Informations</TabsTrigger>
           <TabsTrigger value="historique">Historique scolaire</TabsTrigger>
           <TabsTrigger value="absences">
             Absences ({data.absences.length})
           </TabsTrigger>
+          <TabsTrigger value="notes">Notes &amp; Bulletins</TabsTrigger>
+          <TabsTrigger value="paiements">Paiements</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
         <TabsContent value="informations">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Données personnelles</CardTitle>
+              <EleveStatutBadge statut={data.eleve.statut} />
             </CardHeader>
             <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+              <p>
+                <span className="font-medium">Matricule :</span> {data.eleve.matricule}
+              </p>
+              <p>
+                <span className="font-medium">Nom complet :</span>{" "}
+                {data.eleve.nom} {data.eleve.prenom}
+              </p>
               <p>
                 <span className="font-medium">Date de naissance :</span>{" "}
                 {data.eleve.date_naissance ?? "—"}
@@ -206,23 +351,45 @@ export function EleveDossierPage(): React.JSX.Element {
                     : "—"}
               </p>
               <p>
-                <span className="font-medium">Adresse :</span>{" "}
-                {data.eleve.adresse ?? "—"}
+                <span className="font-medium">Photo :</span>{" "}
+                {data.eleve.photo_url ? (
+                  <a
+                    href={data.eleve.photo_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline"
+                  >
+                    Voir
+                  </a>
+                ) : (
+                  "—"
+                )}
               </p>
               <p>
-                <span className="font-medium">Parent :</span>{" "}
+                <span className="font-medium">Parent / tuteur :</span>{" "}
                 {data.eleve.nom_parent ?? "—"}
               </p>
               <p>
                 <span className="font-medium">Téléphone parent :</span>{" "}
                 {data.eleve.telephone_parent ?? "—"}
               </p>
+              <p className="sm:col-span-2">
+                <span className="font-medium">Adresse :</span>{" "}
+                {data.eleve.adresse ?? "—"}
+              </p>
               {activeInscription ? (
-                <p className="sm:col-span-2">
+                <p className="sm:col-span-2 rounded-lg bg-muted/50 px-3 py-2">
                   <span className="font-medium">Inscription active :</span>{" "}
-                  {activeInscription.date_inscription} — {classeNom}
+                  {activeInscription.date_inscription} — {salleNom}
+                  {anneeMap.get(activeInscription.annee_scolaire_id)
+                    ? ` (${anneeMap.get(activeInscription.annee_scolaire_id)})`
+                    : ""}
                 </p>
-              ) : null}
+              ) : (
+                <p className="sm:col-span-2 text-muted-foreground">
+                  Aucune inscription active.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -234,7 +401,7 @@ export function EleveDossierPage(): React.JSX.Element {
             page={1}
             pageSize={data.inscriptions.length || 1}
             total={data.inscriptions.length}
-            onPageChange={() => {}}
+            onPageChange={() => undefined}
             emptyMessage="Aucune inscription"
           />
         </TabsContent>
@@ -246,19 +413,39 @@ export function EleveDossierPage(): React.JSX.Element {
             page={1}
             pageSize={data.absences.length || 1}
             total={data.absences.length}
-            onPageChange={() => {}}
+            onPageChange={() => undefined}
             emptyMessage="Aucune absence enregistrée"
           />
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <EleveNotesBulletinsTab eleveId={eleveId} eleveNom={eleveNom} />
+        </TabsContent>
+
+        <TabsContent value="paiements">
+          <ElevePaiementsTab eleveId={eleveId} anneeId={anneeActive?.id} />
         </TabsContent>
 
         <TabsContent value="documents">
           <DocumentsPanel
             eleveId={eleveId}
             matricule={data.eleve.matricule}
-            disabled={!canManage}
+            disabled={!canPrint}
           />
         </TabsContent>
       </Tabs>
+
+      {form ? (
+        <EleveFormModal
+          open={editOpen}
+          title="Modifier les informations personnelles"
+          form={form}
+          loading={saveMutation.isPending}
+          onClose={() => setEditOpen(false)}
+          onSubmit={() => saveMutation.mutate(form)}
+          onChange={setForm}
+        />
+      ) : null}
 
       {canManage ? (
         <TransfertModal
@@ -268,6 +455,43 @@ export function EleveDossierPage(): React.JSX.Element {
           currentClasseId={classeId}
         />
       ) : null}
+
+      <Dialog open={archiveOpen} onClose={() => setArchiveOpen(false)}>
+        <h2 className="mb-2 text-lg font-semibold">Archiver cet élève ?</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Il ne sera plus actif.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setArchiveOpen(false)}>
+            Annuler
+          </Button>
+          <Button
+            disabled={archiveMutation.isPending}
+            onClick={() => archiveMutation.mutate()}
+          >
+            Archiver
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
+        <h2 className="mb-2 text-lg font-semibold">Supprimer cet élève ?</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Action irréversible.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate()}
+          >
+            Supprimer
+          </Button>
+        </div>
+      </Dialog>
 
       <FormModal
         open={justifyOpen}

@@ -438,6 +438,20 @@ class PedagogieService:
     def get_bulletin(self, bulletin_id: uuid.UUID) -> BulletinResponse:
         return self._bulletin_to_response(self._get_bulletin(bulletin_id))
 
+    def list_bulletins_eleve(self, eleve_id: uuid.UUID) -> list[BulletinResponse]:
+        """Liste les bulletins générés pour un élève."""
+        self._get_eleve(eleve_id)
+        bulletins = (
+            self.db.query(Bulletin)
+            .filter(
+                Bulletin.tenant_id == self.tenant_id,
+                Bulletin.eleve_id == eleve_id,
+            )
+            .order_by(Bulletin.created_at.desc())
+            .all()
+        )
+        return [self._bulletin_to_response(b) for b in bulletins]
+
     def get_resultats_classe(
         self,
         classe_id: uuid.UUID,

@@ -7,7 +7,7 @@ const CONFIG: Record<
 > = {
   actif: { variant: "success", label: "Actif" },
   transfere: { variant: "warning", label: "Transféré" },
-  exclu: { variant: "destructive", label: "Exclu" },
+  exclu: { variant: "destructive", label: "Archivé" },
 };
 
 interface EleveStatutBadgeProps {

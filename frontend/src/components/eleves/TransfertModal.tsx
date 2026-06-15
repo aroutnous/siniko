@@ -4,10 +4,11 @@ import { FormModal } from "@/components/etablissement/FormModal";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { api, getErrorMessage } from "@/lib/api";
+import { buildNiveauxMap, formatSalleNom } from "@/lib/eleve-utils";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, Inscription } from "@/types";
+import type { AnneeScolaire, Classe, ClasseNiveau, Inscription } from "@/types";
 import { useState } from "react";
 
 interface TransfertModalProps {
@@ -15,6 +16,8 @@ interface TransfertModalProps {
   onClose: () => void;
   eleveId: string;
   currentClasseId?: string;
+  title?: string;
+  submitLabel?: string;
 }
 
 export function TransfertModal({
@@ -22,19 +25,32 @@ export function TransfertModal({
   onClose,
   eleveId,
   currentClasseId,
+  title = "Transférer l'élève",
+  submitLabel = "Transférer",
 }: TransfertModalProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const toast = useToastStore((s) => s.show);
   const [classeId, setClasseId] = useState("");
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.salles);
       return data;
     },
     enabled: open,
   });
+
+  const { data: niveaux = [] } = useQuery({
+    queryKey: ["classes-niveau"],
+    queryFn: async () => {
+      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
+      return data;
+    },
+    enabled: open,
+  });
+
+  const niveauxMap = buildNiveauxMap(niveaux);
 
   const { data: anneeActive } = useQuery({
     queryKey: ["annee-active"],
@@ -63,32 +79,32 @@ export function TransfertModal({
     onError: (err) => toast(getErrorMessage(err), "error"),
   });
 
-  const availableClasses = classes.filter((c) => c.id !== currentClasseId);
+  const availableSalles = salles.filter((s) => s.id !== currentClasseId);
 
   return (
     <FormModal
       open={open}
-      title="Transférer l'élève"
+      title={title}
       onClose={() => {
         setClasseId("");
         onClose();
       }}
       onSubmit={() => mutation.mutate()}
       loading={mutation.isPending}
-      submitLabel="Transférer"
+      submitLabel={submitLabel}
     >
       <div className="space-y-2">
-        <Label htmlFor="nouvelle_classe">Nouvelle classe *</Label>
+        <Label htmlFor="nouvelle_classe">Salle *</Label>
         <Select
           id="nouvelle_classe"
           value={classeId}
           onChange={(e) => setClasseId(e.target.value)}
           required
         >
-          <option value="">Sélectionner une classe</option>
-          {availableClasses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          <option value="">Sélectionner une salle</option>
+          {availableSalles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {formatSalleNom(s, niveauxMap)}
             </option>
           ))}
         </Select>

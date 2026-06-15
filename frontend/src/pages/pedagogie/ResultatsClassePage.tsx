@@ -15,6 +15,7 @@ import { downloadFile } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
+import { formatDecimal } from "@/lib/pedagogie-utils";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   Classe,
@@ -124,7 +125,7 @@ export function ResultatsClassePage(): React.JSX.Element {
     {
       key: "moyenne",
       header: "Moyenne",
-      render: (r) => r.moyenne_generale?.toFixed(2) ?? "—",
+      render: (r) => formatDecimal(r.moyenne_generale),
     },
     { key: "rang", header: "Rang", render: (r) => r.rang ?? "—" },
     {

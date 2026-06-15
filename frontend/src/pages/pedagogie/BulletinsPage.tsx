@@ -17,7 +17,7 @@ import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
 import { useToastStore } from "@/stores/toastStore";
-import { formatStatutCompetence } from "@/lib/pedagogie-utils";
+import { formatDecimal, formatStatutCompetence } from "@/lib/pedagogie-utils";
 import type { Bulletin, Classe, Eleve, Matiere, Periode, StatutBulletin } from "@/types";
 
 const STATUT_LABELS: Record<StatutBulletin, string> = {
@@ -199,7 +199,7 @@ export function BulletinsPage(): React.JSX.Element {
           {
             key: "moyenne",
             header: "Moyenne",
-            render: (r: BulletinRow) => r.moyenne_generale?.toFixed(2) ?? "—",
+            render: (r: BulletinRow) => formatDecimal(r.moyenne_generale),
           },
           {
             key: "rang",

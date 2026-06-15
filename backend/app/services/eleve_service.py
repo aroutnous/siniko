@@ -13,10 +13,10 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.eleve import Absence, Eleve, Inscription
-from app.models.enums import StatutInscription
+from app.models.finance import Paiement
 from app.models.tenant import Tenant
 from app.models.enums import StatutEleve, StatutInscription, TypeAbsence
-from app.models.etablissement import AnneeScolaire, Periode, Salle
+from app.models.etablissement import AnneeScolaire, Classe, Periode, Salle
 from app.schemas.eleve import (
     AbsenceCreate,
     AbsenceResponse,
@@ -25,9 +25,12 @@ from app.schemas.eleve import (
     DossierEleveResponse,
     EleveInscrireCreate,
     EleveInscrireResponse,
+    EleveListResponse,
     EleveResponse,
     EleveUpdate,
+    InscriptionDossierResponse,
     InscriptionResponse,
+    SalleInscriptionBrief,
     TransfertRequest,
 )
 from app.services.audit_service import log_audit
@@ -130,7 +133,7 @@ class EleveService:
         query: str | None = None,
         classe_id: uuid.UUID | None = None,
         annee_id: uuid.UUID | None = None,
-    ) -> list[EleveResponse]:
+    ) -> list[EleveListResponse]:
         """Recherche élèves par nom, prénom ou matricule."""
         q = self.db.query(Eleve).filter(Eleve.tenant_id == self.tenant_id)
 
@@ -157,7 +160,17 @@ class EleveService:
                 q = q.filter(Inscription.annee_scolaire_id == annee_id)
 
         eleves = q.order_by(Eleve.nom, Eleve.prenom).distinct().all()
-        return [EleveResponse.model_validate(e) for e in eleves]
+        eleve_ids = [e.id for e in eleves]
+        salle_noms = self._salle_noms_par_eleve(eleve_ids)
+        salle_ids = self._salle_ids_par_eleve(eleve_ids)
+        return [
+            EleveListResponse(
+                **EleveResponse.model_validate(e).model_dump(),
+                salle_nom=salle_noms.get(e.id),
+                salle_id=salle_ids.get(e.id),
+            )
+            for e in eleves
+        ]
 
     def get_eleve(self, eleve_id: uuid.UUID) -> EleveResponse:
         return EleveResponse.model_validate(self._get_eleve(eleve_id))
@@ -175,6 +188,46 @@ class EleveService:
         else:
             self._audit("students.update", "eleves", eleve.id)
         return EleveResponse.model_validate(eleve)
+
+    def archiver_eleve(self, eleve_id: uuid.UUID) -> EleveResponse:
+        """Archive un élève (statut exclu, inscription active abandonnée)."""
+        eleve = self._get_eleve(eleve_id)
+        inscriptions_actives = (
+            self.db.query(Inscription)
+            .filter(
+                Inscription.tenant_id == self.tenant_id,
+                Inscription.eleve_id == eleve.id,
+                Inscription.statut == StatutInscription.INSCRIT,
+            )
+            .all()
+        )
+        for inscription in inscriptions_actives:
+            inscription.statut = StatutInscription.ABANDONNE
+        eleve.statut = StatutEleve.EXCLU
+        self.db.commit()
+        self.db.refresh(eleve)
+        self._audit("students.archive", "eleves", eleve.id)
+        return EleveResponse.model_validate(eleve)
+
+    def supprimer_eleve(self, eleve_id: uuid.UUID) -> None:
+        """Supprime définitivement un élève sans paiement associé."""
+        eleve = self._get_eleve(eleve_id)
+        paiements = (
+            self.db.query(Paiement)
+            .filter(
+                Paiement.tenant_id == self.tenant_id,
+                Paiement.eleve_id == eleve.id,
+            )
+            .count()
+        )
+        if paiements > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Impossible de supprimer : paiements associés à cet élève",
+            )
+        self.db.delete(eleve)
+        self.db.commit()
+        self._audit("students.delete", "eleves", eleve_id)
 
     def affecter_classe(
         self,
@@ -277,10 +330,51 @@ class EleveService:
             .order_by(Absence.date_absence.desc())
             .all()
         )
+        salle_ids = {i.classe_id for i in inscriptions}
+        salles = (
+            self.db.query(Salle)
+            .filter(Salle.tenant_id == self.tenant_id, Salle.id.in_(salle_ids))
+            .all()
+            if salle_ids
+            else []
+        )
+        salles_by_id = {s.id: s for s in salles}
+        niveau_map = self._niveaux_par_salle(salles)
+
+        inscriptions_enrichies: list[InscriptionDossierResponse] = []
+        salle_active_nom: str | None = None
+        for inscription in inscriptions:
+            salle = salles_by_id.get(inscription.classe_id)
+            salle_nom = (
+                self._format_salle_nom(salle, niveau_map) if salle is not None else None
+            )
+            if (
+                inscription.statut == StatutInscription.INSCRIT
+                and salle_active_nom is None
+                and salle_nom
+            ):
+                salle_active_nom = salle_nom
+            salle_brief: SalleInscriptionBrief | None = None
+            if salle is not None:
+                salle_brief = SalleInscriptionBrief(
+                    id=salle.id,
+                    nom=salle.nom,
+                    nom_salle=salle.nom_salle,
+                    niveau_nom=niveau_map.get(salle.classe_id),
+                )
+            inscriptions_enrichies.append(
+                InscriptionDossierResponse(
+                    **InscriptionResponse.model_validate(inscription).model_dump(),
+                    salle_nom=salle_nom,
+                    salle=salle_brief,
+                )
+            )
+
         return DossierEleveResponse(
             eleve=EleveResponse.model_validate(eleve),
-            inscriptions=[InscriptionResponse.model_validate(i) for i in inscriptions],
+            inscriptions=inscriptions_enrichies,
             absences=[AbsenceResponse.model_validate(a) for a in absences],
+            salle_active_nom=salle_active_nom,
         )
 
     def enregistrer_absence(
@@ -452,7 +546,7 @@ class EleveService:
         )
         return {
             "eleve": eleve,
-            "classe_nom": salle.nom,
+            "classe_nom": self._format_salle_nom(salle),
             "annee_libelle": annee.libelle,
             "etablissement": tenant.nom if tenant else "Établissement",
             "logo_url": tenant.logo_url if tenant else None,
@@ -503,6 +597,99 @@ class EleveService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Salle complète",
             )
+
+    def _niveaux_par_salle(
+        self,
+        salles: list[Salle],
+    ) -> dict[uuid.UUID, str]:
+        niveau_ids = {s.classe_id for s in salles}
+        if not niveau_ids:
+            return {}
+        niveaux = (
+            self.db.query(Classe)
+            .filter(
+                Classe.tenant_id == self.tenant_id,
+                Classe.id.in_(niveau_ids),
+            )
+            .all()
+        )
+        return {n.id: n.nom for n in niveaux}
+
+    def _format_salle_nom(
+        self,
+        salle: Salle,
+        niveaux: dict[uuid.UUID, str] | None = None,
+    ) -> str:
+        if salle.nom_salle and salle.nom_salle.strip():
+            return salle.nom_salle.strip()
+        niveau_nom = (niveaux or {}).get(salle.classe_id)
+        if niveau_nom is None:
+            niveau = (
+                self.db.query(Classe)
+                .filter(
+                    Classe.tenant_id == self.tenant_id,
+                    Classe.id == salle.classe_id,
+                )
+                .first()
+            )
+            niveau_nom = niveau.nom if niveau else None
+        nom = salle.nom.strip()
+        if niveau_nom:
+            if nom == niveau_nom or nom.startswith(f"{niveau_nom} "):
+                return nom
+            return f"{niveau_nom} {nom}".strip()
+        return nom
+
+    def _salle_noms_par_eleve(
+        self,
+        eleve_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, str]:
+        if not eleve_ids:
+            return {}
+        inscriptions = (
+            self.db.query(Inscription)
+            .filter(
+                Inscription.tenant_id == self.tenant_id,
+                Inscription.eleve_id.in_(eleve_ids),
+                Inscription.statut == StatutInscription.INSCRIT,
+            )
+            .all()
+        )
+        salle_ids = {i.classe_id for i in inscriptions}
+        salles = (
+            self.db.query(Salle)
+            .filter(Salle.tenant_id == self.tenant_id, Salle.id.in_(salle_ids))
+            .all()
+            if salle_ids
+            else []
+        )
+        niveau_map = self._niveaux_par_salle(salles)
+        salle_map = {
+            s.id: self._format_salle_nom(s, niveau_map) for s in salles
+        }
+        result: dict[uuid.UUID, str] = {}
+        for inscription in inscriptions:
+            nom = salle_map.get(inscription.classe_id)
+            if nom:
+                result[inscription.eleve_id] = nom
+        return result
+
+    def _salle_ids_par_eleve(
+        self,
+        eleve_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, uuid.UUID]:
+        if not eleve_ids:
+            return {}
+        inscriptions = (
+            self.db.query(Inscription)
+            .filter(
+                Inscription.tenant_id == self.tenant_id,
+                Inscription.eleve_id.in_(eleve_ids),
+                Inscription.statut == StatutInscription.INSCRIT,
+            )
+            .all()
+        )
+        return {i.eleve_id: i.classe_id for i in inscriptions}
 
     def _get_eleve(self, eleve_id: uuid.UUID) -> Eleve:
         eleve = (

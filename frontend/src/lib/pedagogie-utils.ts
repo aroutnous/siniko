@@ -17,6 +17,21 @@ export function formatStatutCompetence(value: string | null | undefined): string
   return STATUT_COMPETENCE_LABELS[value] ?? value;
 }
 
+/** Formate une note ou moyenne (l'API peut renvoyer des Decimal en string). */
+export function formatDecimal(
+  value: number | string | null | undefined,
+  decimals = 2,
+): string {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+  const n = typeof value === "number" ? value : parseFloat(String(value));
+  if (Number.isNaN(n)) {
+    return "—";
+  }
+  return n.toFixed(decimals);
+}
+
 export function parseCycleNotationFromValeur(
   meta: Record<string, string | number | null | boolean> | undefined,
 ): {

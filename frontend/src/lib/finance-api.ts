@@ -8,6 +8,8 @@ export const FINANCE_API = {
   salaires: "/finance/salaires",
   caisse: "/finance/caisse",
   situation: "/finance/situation",
+  situationEleve: (eleveId: string) => `/finance/eleves/${eleveId}/situation`,
+  recusEleve: (eleveId: string) => `/finance/eleves/${eleveId}/recus`,
 } as const;
 
 export const REPORTING_FINANCE_API = {

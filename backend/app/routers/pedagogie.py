@@ -176,6 +176,19 @@ def generer_bulletins_classe(
     return _service(db, user, request).generer_bulletins_classe(body)
 
 
+@router.get(
+    "/eleves/{eleve_id}/bulletins",
+    response_model=list[BulletinResponse],
+)
+def list_bulletins_eleve(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: PedagogyReader,
+) -> list[BulletinResponse]:
+    return _service(db, user, request).list_bulletins_eleve(eleve_id)
+
+
 @router.get("/bulletins/{bulletin_id}", response_model=BulletinResponse)
 def get_bulletin(
     bulletin_id: uuid.UUID,

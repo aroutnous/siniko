@@ -73,8 +73,14 @@ export function HistoriqueNotesPage(): React.JSX.Element {
 
   const rows: HistoriqueRow[] = notes.map((n) => ({
     ...n,
-    matiere_nom: matiereMap.get(n.matiere_id) ?? n.matiere_id,
-    periode_nom: periodeMap.get(n.periode_id) ?? n.periode_id,
+    matiere_nom:
+      (n.matiere_id ? matiereMap.get(n.matiere_id) : undefined) ??
+      n.matiere_id ??
+      "—",
+    periode_nom:
+      (n.periode_id ? periodeMap.get(n.periode_id) : undefined) ??
+      n.periode_id ??
+      "—",
   }));
 
   const groupedByPeriode = useMemo(() => {

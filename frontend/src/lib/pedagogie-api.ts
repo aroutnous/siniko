@@ -1,6 +1,7 @@
 export const PEDAGOGIE_API = {
   notesBatch: "/pedagogie/notes/batch",
   notesHistorique: (eleveId: string) => `/pedagogie/notes/${eleveId}`,
+  bulletinsEleve: (eleveId: string) => `/pedagogie/eleves/${eleveId}/bulletins`,
   bulletinsGenerer: "/pedagogie/bulletins/generer",
   bulletin: (id: string) => `/pedagogie/bulletins/${id}`,
   bulletinValider: (id: string) => `/pedagogie/bulletins/${id}/valider`,

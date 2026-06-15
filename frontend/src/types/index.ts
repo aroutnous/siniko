@@ -111,6 +111,13 @@ export type StatutEleve = "actif" | "transfere" | "exclu";
 export type StatutInscription = "inscrit" | "transfere" | "abandonne";
 export type TypeAbsence = "absence" | "retard";
 
+export interface SalleInscriptionBrief {
+  id: string;
+  nom: string;
+  nom_salle: string | null;
+  niveau_nom?: string | null;
+}
+
 export interface Inscription {
   id: string;
   eleve_id: string;
@@ -120,6 +127,8 @@ export interface Inscription {
   statut: StatutInscription;
   created_at: string;
   updated_at: string | null;
+  salle_nom?: string | null;
+  salle?: SalleInscriptionBrief | null;
 }
 
 export interface Absence {
@@ -155,6 +164,10 @@ export interface EleveInscrireResponse {
 }
 
 export interface EleveListItem extends Eleve {
+  salle_nom?: string | null;
+  /** Salle active (inscription en cours). */
+  salle_id?: string | null;
+  /** @deprecated Utiliser `salle_nom`. */
   classe_nom?: string;
 }
 
@@ -170,6 +183,7 @@ export interface DossierEleve {
   eleve: Eleve;
   inscriptions: Inscription[];
   absences: Absence[];
+  salle_active_nom?: string | null;
 }
 
 export interface Eleve {
@@ -400,8 +414,9 @@ export interface Note {
   id: string;
   tenant_id?: string;
   eleve_id: string;
-  matiere_id: string;
-  periode_id: string;
+  matiere_id: string | null;
+  periode_id: string | null;
+  sequence_id?: string | null;
   classe_id: string;
   valeur: number | null;
   valeur_qualitative: string | null;
@@ -409,6 +424,21 @@ export interface Note {
   saisi_par?: string | null;
   created_at?: string;
   updated_at?: string | null;
+}
+
+export interface SituationEleve {
+  eleve_id: string;
+  annee_scolaire_id: string;
+  total_du: number;
+  total_paye: number;
+  reste_a_payer: number;
+  frais: Array<{
+    frais_id: string;
+    libelle: string;
+    montant: number;
+    montant_paye: number;
+    reste: number;
+  }>;
 }
 
 export interface NoteCreatePayload {
@@ -438,7 +468,7 @@ export interface Bulletin {
   eleve_id: string;
   classe_id: string;
   periode_id: string;
-  moyenne_generale: number | null;
+  moyenne_generale: number | string | null;
   rang: number | null;
   effectif_classe: number | null;
   mention: string | null;

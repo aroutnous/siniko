@@ -16,6 +16,7 @@ import { FINANCE_API } from "@/lib/finance-api";
 import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
 import { REPORTING_API } from "@/lib/reporting-api";
 import { getEleveClasseId } from "@/lib/eleve-utils";
+import { formatDecimal } from "@/lib/pedagogie-utils";
 import type { Bulletin, Classe, DossierEleve, Eleve, Paiement, Periode } from "@/types";
 
 export function ImpressionsPage(): React.JSX.Element {
@@ -171,7 +172,7 @@ export function ImpressionsPage(): React.JSX.Element {
                       <div>
                         <Badge variant="success">Publié</Badge>
                         <span className="ml-2 text-sm">
-                          Moy. {b.moyenne_generale?.toFixed(2)} — Rang {b.rang}
+                          Moy. {formatDecimal(b.moyenne_generale)} — Rang {b.rang}
                         </span>
                       </div>
                       <PrintButton

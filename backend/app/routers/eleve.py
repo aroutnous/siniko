@@ -17,6 +17,7 @@ from app.schemas.eleve import (
     DossierEleveResponse,
     EleveInscrireCreate,
     EleveInscrireResponse,
+    EleveListResponse,
     EleveResponse,
     EleveUpdate,
     InscriptionResponse,
@@ -119,7 +120,7 @@ def inscrire_eleve(
     return _service(db, user, request).inscrire_eleve(body)
 
 
-@router.get("/", response_model=list[EleveResponse])
+@router.get("/", response_model=list[EleveListResponse])
 def rechercher_eleves(
     request: Request,
     db: DbSession,
@@ -127,7 +128,7 @@ def rechercher_eleves(
     query: str | None = Query(default=None, min_length=1),
     classe_id: uuid.UUID | None = Query(default=None),
     annee_id: uuid.UUID | None = Query(default=None),
-) -> list[EleveResponse]:
+) -> list[EleveListResponse]:
     return _service(db, user, request).rechercher(query, classe_id, annee_id)
 
 
@@ -178,6 +179,26 @@ def update_eleve(
     user: StudentsWriter,
 ) -> EleveResponse:
     return _service(db, user, request).update_eleve(eleve_id, body)
+
+
+@router.post("/{eleve_id}/archiver", response_model=EleveResponse)
+def archiver_eleve(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: StudentsWriter,
+) -> EleveResponse:
+    return _service(db, user, request).archiver_eleve(eleve_id)
+
+
+@router.delete("/{eleve_id}", status_code=status.HTTP_204_NO_CONTENT)
+def supprimer_eleve(
+    eleve_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: StudentsWriter,
+) -> None:
+    _service(db, user, request).supprimer_eleve(eleve_id)
 
 
 @router.post(

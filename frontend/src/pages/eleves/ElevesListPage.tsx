@@ -1,41 +1,76 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import {
+  EleveFormModal,
+  eleveToForm,
+  formToPayload,
+  type EleveFormValues,
+} from "@/components/eleves/EleveFormModal";
 import { EleveStatutBadge } from "@/components/eleves/EleveStatutBadge";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useElevesAccess } from "@/hooks/useElevesAccess";
-import { api } from "@/lib/api";
-import { getEleveClasseId, resolveClasseNom } from "@/lib/eleve-utils";
+import { api, getErrorMessage } from "@/lib/api";
+import { buildNiveauxMap, formatSalleNom, resolveSalleNom } from "@/lib/eleve-utils";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { ROUTES } from "@/lib/constants";
-import type { AnneeScolaire, Classe, DossierEleve, EleveListItem } from "@/types";
+import { useToastStore } from "@/stores/toastStore";
+import type { AnneeScolaire, Classe, ClasseNiveau, Eleve, EleveListItem } from "@/types";
 
 const PAGE_SIZE = 10;
 
+const EMPTY_FORM: EleveFormValues = {
+  nom: "",
+  prenom: "",
+  date_naissance: "",
+  lieu_naissance: "",
+  sexe: "",
+  photo_url: "",
+  nom_parent: "",
+  telephone_parent: "",
+  adresse: "",
+};
+
 export function ElevesListPage(): React.JSX.Element {
   const navigate = useNavigate();
-  const { canRead, canManage } = useElevesAccess();
+  const queryClient = useQueryClient();
+  const toast = useToastStore((s) => s.show);
+  const { canRead, canManage, canDelete } = useElevesAccess();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [classeId, setClasseId] = useState("");
   const [anneeId, setAnneeId] = useState("");
   const [page, setPage] = useState(1);
+  const [editTarget, setEditTarget] = useState<EleveListItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EleveListItem | null>(null);
+  const [form, setForm] = useState<EleveFormValues>(EMPTY_FORM);
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { data: niveaux = [] } = useQuery({
+    queryKey: ["classes-niveau"],
+    queryFn: async () => {
+      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
+      return data;
+    },
+  });
+
+  const niveauxMap = useMemo(() => buildNiveauxMap(niveaux), [niveaux]);
 
   const { data: annees = [] } = useQuery({
     queryKey: ["annees-scolaires"],
@@ -63,29 +98,31 @@ export function ElevesListPage(): React.JSX.Element {
     return eleves.slice(start, start + PAGE_SIZE);
   }, [eleves, page]);
 
-  const dossierQueries = useQueries({
-    queries: paginated.map((eleve) => ({
-      queryKey: ["eleve-dossier-mini", eleve.id],
-      queryFn: async () => {
-        const { data } = await api.get<DossierEleve>(ELEVES_API.dossier(eleve.id));
-        return data;
-      },
-      staleTime: 60_000,
-      enabled: !classeId,
-    })),
+  const saveMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: EleveFormValues }) => {
+      const { data } = await api.put<Eleve>(ELEVES_API.detail(id), formToPayload(payload));
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["eleves"] });
+      toast("Élève modifié");
+      setEditTarget(null);
+      setForm(EMPTY_FORM);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
   });
 
-  const enrichedEleves = useMemo((): EleveListItem[] => {
-    if (classeId) {
-      const classeNom = resolveClasseNom(classeId, classes);
-      return paginated.map((e) => ({ ...e, classe_nom: classeNom }));
-    }
-    return paginated.map((eleve, index) => {
-      const dossier = dossierQueries[index]?.data;
-      const cid = dossier ? getEleveClasseId(dossier) : undefined;
-      return { ...eleve, classe_nom: resolveClasseNom(cid, classes) };
-    });
-  }, [paginated, classeId, classes, dossierQueries]);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(ELEVES_API.detail(id));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["eleves"] });
+      toast("Élève supprimé");
+      setDeleteTarget(null);
+    },
+    onError: (err) => toast(getErrorMessage(err), "error"),
+  });
 
   const columns: DataTableColumn<EleveListItem>[] = [
     { key: "matricule", header: "Matricule", render: (r) => r.matricule },
@@ -94,7 +131,11 @@ export function ElevesListPage(): React.JSX.Element {
     {
       key: "classe",
       header: "Classe",
-      render: (r) => r.classe_nom ?? "—",
+      render: (r) =>
+        r.salle_nom ??
+        (r.salle_id ? resolveSalleNom(r.salle_id, salles, niveauxMap) : null) ??
+        r.classe_nom ??
+        "—",
     },
     {
       key: "statut",
@@ -105,13 +146,38 @@ export function ElevesListPage(): React.JSX.Element {
       key: "actions",
       header: "Actions",
       render: (r) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(`/eleves/${r.id}/dossier`)}
-        >
-          Voir dossier
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/eleves/${r.id}/dossier`)}
+          >
+            Voir dossier
+          </Button>
+          {canManage ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditTarget(r);
+                setForm(eleveToForm(r));
+              }}
+            >
+              <Pencil className="mr-1 h-4 w-4" />
+              Modifier
+            </Button>
+          ) : null}
+          {canDelete ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteTarget(r)}
+            >
+              <Trash2 className="mr-1 h-4 w-4" />
+              Supprimer
+            </Button>
+          ) : null}
+        </div>
       ),
     },
   ];
@@ -126,8 +192,6 @@ export function ElevesListPage(): React.JSX.Element {
     else setAnneeId(value);
     setPage(1);
   };
-
-  const loadingDossiers = !classeId && dossierQueries.some((q) => q.isLoading);
 
   return (
     <div>
@@ -162,12 +226,12 @@ export function ElevesListPage(): React.JSX.Element {
         <Select
           value={classeId}
           onChange={(e) => handleFilterChange("classe", e.target.value)}
-          className="max-w-[180px]"
+          className="max-w-[220px]"
         >
           <option value="">Toutes les classes</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          {salles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {formatSalleNom(s, niveauxMap)}
             </option>
           ))}
         </Select>
@@ -185,18 +249,50 @@ export function ElevesListPage(): React.JSX.Element {
         </Select>
       </div>
 
-      {isLoading || loadingDossiers ? (
+      {isLoading ? (
         <LoadingSpinner />
       ) : (
         <DataTable
           columns={columns}
-          data={enrichedEleves}
+          data={paginated}
           page={page}
           pageSize={PAGE_SIZE}
           total={eleves.length}
           onPageChange={setPage}
         />
       )}
+
+      <EleveFormModal
+        open={Boolean(editTarget)}
+        title="Modifier l'élève"
+        form={form}
+        loading={saveMutation.isPending}
+        onClose={() => {
+          setEditTarget(null);
+          setForm(EMPTY_FORM);
+        }}
+        onSubmit={() => editTarget && saveMutation.mutate({ id: editTarget.id, payload: form })}
+        onChange={setForm}
+      />
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
+        <h2 className="mb-2 text-lg font-semibold">Supprimer cet élève ?</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Toutes ses données associées seront perdues. Cette action est irréversible.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            Annuler
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteMutation.isPending}
+            onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+          >
+            Supprimer
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }
