@@ -11,9 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useHasPermission } from "@/hooks/useHasPermission";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { downloadPdf } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { FINANCE_API } from "@/lib/finance-api";
 import { getEleveClasseId } from "@/lib/eleve-utils";
@@ -22,11 +24,11 @@ import { REPORTING_API } from "@/lib/reporting-api";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   Bulletin,
-  Classe,
   DossierEleve,
   Eleve,
   Paiement,
   Periode,
+  Salle,
 } from "@/types";
 
 export function HubDocumentairePage(): React.JSX.Element {
@@ -461,13 +463,15 @@ function ListesClasseSection(): React.JSX.Element {
   const [classeId, setClasseId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const handleDownload = async (): Promise<void> => {
     if (!classeId) return;
@@ -500,9 +504,9 @@ function ListesClasseSection(): React.JSX.Element {
             className="min-w-[200px]"
           >
             <option value="">Sélectionner</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nom}
+            {sortedSalles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
               </option>
             ))}
           </Select>
@@ -530,14 +534,16 @@ function RapportsExportSection(): React.JSX.Element {
     },
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
     enabled: rapportType === "resultats",
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: periodes = [] } = useQuery({
     queryKey: ["periodes"],
@@ -598,9 +604,9 @@ function RapportsExportSection(): React.JSX.Element {
               className="max-w-xs"
             >
               <option value="">Classe</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nom}
+              {sortedSalles.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
                 </option>
               ))}
             </Select>

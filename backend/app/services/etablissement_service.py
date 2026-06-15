@@ -248,10 +248,20 @@ class EtablissementService:
     def create_salle(self, data: SalleCreate) -> SalleResponse:
         self._get_classe(data.classe_id)
         self._get_annee(data.annee_scolaire_id)
-        payload = data.model_dump(exclude_unset=True)
-        if not payload.get("nom") and payload.get("nom_salle"):
-            payload["nom"] = payload["nom_salle"]
-        salle = Salle(tenant_id=self.tenant_id, **payload)
+        nom = data.nom
+        nom_salle = data.nom_salle
+        if not nom and nom_salle:
+            nom = nom_salle
+        if not nom_salle and nom:
+            nom_salle = nom
+        salle = Salle(
+            tenant_id=self.tenant_id,
+            classe_id=data.classe_id,
+            annee_scolaire_id=data.annee_scolaire_id,
+            nom=nom,
+            nom_salle=nom_salle,
+            capacite=data.capacite,
+        )
         self.db.add(salle)
         self.db.commit()
         self.db.refresh(salle)
@@ -358,7 +368,7 @@ class EtablissementService:
     def get_annee_scolaire(self, annee_id: uuid.UUID) -> AnneeScolaireResponse:
         return AnneeScolaireResponse.model_validate(self._get_annee(annee_id))
 
-    def get_annee_active(self) -> AnneeScolaireResponse:
+    def get_annee_active(self) -> AnneeScolaireResponse | None:
         annee = (
             self.db.query(AnneeScolaire)
             .filter(
@@ -368,10 +378,7 @@ class EtablissementService:
             .first()
         )
         if annee is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Aucune année scolaire active",
-            )
+            return None
         return AnneeScolaireResponse.model_validate(annee)
 
     def update_annee_scolaire(

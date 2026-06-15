@@ -1,5 +1,7 @@
 import type { Classe, ClasseNiveau, DossierEleve, Inscription } from "@/types";
 
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
+
 export function getActiveInscription(
   inscriptions: Inscription[],
 ): Inscription | undefined {
@@ -13,28 +15,15 @@ export interface SalleDisplayFields {
   niveau_nom?: string | null;
 }
 
-/** Libellé affichable d'une salle : nom_salle, sinon niveau + nom. */
+/** Libellé affichable d'une salle : « {classe} - {nom_salle} ». */
 export function formatSalleNom(
   salle: Pick<Classe, "nom" | "nom_salle" | "classe_id"> | SalleDisplayFields,
   niveauxMap?: Map<string, string>,
 ): string {
-  if (salle.nom_salle?.trim()) {
-    return salle.nom_salle.trim();
-  }
-
-  const nom = salle.nom.trim();
-  const niveauNom =
+  const classeNom =
     ("niveau_nom" in salle && salle.niveau_nom?.trim()) ||
     (salle.classe_id ? niveauxMap?.get(salle.classe_id) : undefined);
-
-  if (niveauNom) {
-    if (nom === niveauNom || nom.startsWith(`${niveauNom} `)) {
-      return nom;
-    }
-    return `${niveauNom} ${nom}`.trim();
-  }
-
-  return nom;
+  return getSalleDisplayName(salle, classeNom ?? null);
 }
 
 export function inscriptionSalleLabel(

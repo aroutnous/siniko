@@ -13,12 +13,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useMenuAccess } from "@/hooks/useMenuAccess";
+import { useClassesSelectData } from "@/hooks/useClassesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import {
+  getClasseAbbreviation,
+  getSalleDisplayName,
+  parseCapaciteInput,
+} from "@/lib/etablissement-utils";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   AnneeScolaire,
-  ClasseNiveau,
   Salle,
   SalleEffectif,
 } from "@/types";
@@ -62,13 +67,7 @@ export function SallesPage(): React.JSX.Element {
     retry: false,
   });
 
-  const { data: classesNiveau = [] } = useQuery({
-    queryKey: ["classes-niveau"],
-    queryFn: async () => {
-      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
-      return data;
-    },
-  });
+  const { sortedClasses, classesMap } = useClassesSelectData();
 
   const { data: salles = [], isLoading } = useQuery({
     queryKey: ["salles"],
@@ -91,26 +90,36 @@ export function SallesPage(): React.JSX.Element {
   });
 
   const rows: SalleRow[] = useMemo(() => {
-    const classeMap = new Map(classesNiveau.map((c) => [c.id, c.nom]));
     return salles.map((salle, index) => {
       const eff = effectifQueries[index]?.data;
       return {
         ...salle,
-        classe_nom: classeMap.get(salle.classe_id) ?? "—",
+        classe_nom: classesMap.get(salle.classe_id)?.nom ?? "—",
         effectif: eff?.effectif ?? 0,
         est_complete: eff?.est_complete ?? false,
       };
     });
-  }, [salles, classesNiveau, effectifQueries]);
+  }, [salles, classesMap, effectifQueries]);
 
   const saveMutation = useMutation({
     mutationFn: async ({ payload, id }: { payload: SalleForm; id?: string }) => {
-      const body = {
+      const capacite = parseCapaciteInput(payload.capacite);
+      if (payload.capacite.trim() && capacite === null) {
+        throw new Error("Capacité invalide (entier ≥ 1)");
+      }
+      const body: {
+        classe_id: string;
+        annee_scolaire_id: string;
+        nom_salle: string;
+        capacite?: number;
+      } = {
         classe_id: payload.classe_id,
         annee_scolaire_id: payload.annee_scolaire_id,
-        nom_salle: payload.nom_salle,
-        capacite: payload.capacite ? Number(payload.capacite) : undefined,
+        nom_salle: payload.nom_salle.trim(),
       };
+      if (capacite !== null) {
+        body.capacite = capacite;
+      }
       if (id) {
         const { data } = await api.put<Salle>(`${ETABLISSEMENT_API.salles}/${id}`, body);
         return data;
@@ -165,8 +174,8 @@ export function SallesPage(): React.JSX.Element {
   const columns: DataTableColumn<SalleRow>[] = [
     {
       key: "nom",
-      header: "Nom salle",
-      render: (r) => r.nom_salle ?? r.nom,
+      header: "Salle",
+      render: (r) => getSalleDisplayName(r, r.classe_nom),
     },
     { key: "classe", header: "Classe", render: (r) => r.classe_nom },
     {
@@ -273,9 +282,9 @@ export function SallesPage(): React.JSX.Element {
             disabled={Boolean(editTarget)}
           >
             <option value="">Sélectionner</option>
-            {classesNiveau.map((c) => (
+            {sortedClasses.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nom}
+                {getClasseAbbreviation(c.nom)}
               </option>
             ))}
           </Select>
@@ -304,7 +313,7 @@ export function SallesPage(): React.JSX.Element {
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
         <h2 className="mb-2 text-lg font-semibold">Supprimer la salle</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          Supprimer {deleteTarget?.nom_salle ?? deleteTarget?.nom} ? Cette action est
+          Supprimer {deleteTarget ? getSalleDisplayName(deleteTarget, classesMap.get(deleteTarget.classe_id) ?? null) : ""} ? Cette action est
           irréversible.
         </p>
         <div className="flex justify-end gap-2">

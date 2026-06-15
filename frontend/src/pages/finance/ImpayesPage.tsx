@@ -11,9 +11,9 @@ import { downloadFile } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { FINANCE_API, REPORTING_FINANCE_API } from "@/lib/finance-api";
-import { getEleveClasseId, resolveClasseNom } from "@/lib/eleve-utils";
+import { buildNiveauxMap, getEleveClasseId, resolveClasseNom } from "@/lib/eleve-utils";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, DossierEleve, Impaye } from "@/types";
+import type { AnneeScolaire, ClasseNiveau, DossierEleve, Impaye, Salle } from "@/types";
 
 interface ImpayeRow extends Impaye {
   id: string;
@@ -33,13 +33,26 @@ export function ImpayesPage(): React.JSX.Element {
     },
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { data: classesNiveau = [] } = useQuery({
+    queryKey: ["classes-niveau"],
+    queryFn: async () => {
+      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
+      return data;
+    },
+  });
+
+  const niveauxMap = useMemo(
+    () => buildNiveauxMap(classesNiveau),
+    [classesNiveau],
+  );
 
   const { data: impayes = [], isLoading } = useQuery({
     queryKey: ["impayes", anneeId],
@@ -75,7 +88,7 @@ export function ImpayesPage(): React.JSX.Element {
     return {
       ...row,
       id: row.eleve_id,
-      classe_nom: resolveClasseNom(classeId, classes),
+      classe_nom: resolveClasseNom(classeId, salles, niveauxMap),
     };
   });
 

@@ -17,17 +17,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useElevesAccess } from "@/hooks/useElevesAccess";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   Absence,
   AbsenceCreatePayload,
-  Classe,
   ClasseAbsencesResponse,
   Eleve,
   Periode,
+  Salle,
   TypeAbsence,
 } from "@/types";
 
@@ -56,13 +58,15 @@ export function AbsencesPage(): React.JSX.Element {
   const [justifyMotif, setJustifyMotif] = useState("");
   const [selectedAbsence, setSelectedAbsence] = useState<Absence | null>(null);
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: periodes = [] } = useQuery({
     queryKey: ["periodes"],
@@ -233,9 +237,9 @@ export function AbsencesPage(): React.JSX.Element {
           className="max-w-[200px]"
         >
           <option value="">Sélectionner une classe</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          {sortedSalles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>
@@ -328,7 +332,8 @@ export function AbsencesPage(): React.JSX.Element {
           values={form}
           onChange={updateForm}
           eleves={eleves}
-          classes={classes}
+          salles={sortedSalles}
+          classesMap={classesMap}
         />
       </FormModal>
 

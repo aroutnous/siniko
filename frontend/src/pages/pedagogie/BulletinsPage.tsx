@@ -11,14 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { usePedagogieAccess } from "@/hooks/usePedagogieAccess";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { downloadPdf } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
 import { useToastStore } from "@/stores/toastStore";
 import { formatDecimal, formatStatutCompetence } from "@/lib/pedagogie-utils";
-import type { Bulletin, Classe, Eleve, Matiere, Periode, StatutBulletin } from "@/types";
+import type { Bulletin, Eleve, Matiere, Periode, Salle, StatutBulletin } from "@/types";
 
 const STATUT_LABELS: Record<StatutBulletin, string> = {
   brouillon: "Brouillon",
@@ -43,13 +45,15 @@ export function BulletinsPage(): React.JSX.Element {
   const [periodeId, setPeriodeId] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: matieres = [] } = useQuery({
     queryKey: ["matieres"],
@@ -308,9 +312,9 @@ export function BulletinsPage(): React.JSX.Element {
           className="max-w-[220px]"
         >
           <option value="">Sélectionner une classe</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          {sortedSalles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

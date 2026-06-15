@@ -450,12 +450,12 @@ def list_annees_scolaires(
     return _service(db, user, request).list_annees_scolaires()
 
 
-@router.get("/annees-scolaires/active", response_model=AnneeScolaireResponse)
+@router.get("/annees-scolaires/active", response_model=AnneeScolaireResponse | None)
 def get_annee_active(
     request: Request,
     db: DbSession,
     user: EstablishmentReader,
-) -> AnneeScolaireResponse:
+) -> AnneeScolaireResponse | None:
     return _service(db, user, request).get_annee_active()
 
 

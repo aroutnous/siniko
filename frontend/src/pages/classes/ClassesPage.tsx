@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { useMenuAccess } from "@/hooks/useMenuAccess";
 import { api, getErrorMessage } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getClasseAbbreviation } from "@/lib/etablissement-utils";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   ClasseNiveau,
@@ -96,6 +97,11 @@ export function ClassesPage(): React.JSX.Element {
     },
     enabled: Boolean(selectedCycleNom),
   });
+
+  const sortedValeursClasses = useMemo(
+    () => [...valeursClasses].sort((a, b) => a.ordre - b.ordre),
+    [valeursClasses],
+  );
 
   const classeMap = useMemo(
     () => new Map(classesNiveau.map((c) => [c.id, c])),
@@ -299,9 +305,9 @@ export function ClassesPage(): React.JSX.Element {
             disabled={!createForm.cycle_id}
           >
             <option value="">Sélectionner</option>
-            {valeursClasses.map((v) => (
+            {sortedValeursClasses.map((v) => (
               <option key={v.id} value={v.valeur}>
-                {v.valeur}
+                {getClasseAbbreviation(v.valeur)}
               </option>
             ))}
           </Select>

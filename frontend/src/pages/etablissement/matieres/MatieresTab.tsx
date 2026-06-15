@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useMenuAccess } from "@/hooks/useMenuAccess";
 import { api, getErrorMessage } from "@/lib/api";
-import { displayCycleLabel } from "@/lib/etablissement-utils";
+import { displayCycleLabel, getClasseAbbreviation } from "@/lib/etablissement-utils";
 import { ENSEIGNANTS_API } from "@/lib/enseignants-api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { cn } from "@/lib/utils";
@@ -741,7 +741,7 @@ function MatiereFormFields({
             <optgroup key={cycle.id} label={displayCycleLabel(cycle.nom)}>
               {classes.map(({ classe }) => (
                 <option key={classe.id} value={classe.id}>
-                  {classe.nom}
+                  {getClasseAbbreviation(classe.nom)}
                 </option>
               ))}
             </optgroup>

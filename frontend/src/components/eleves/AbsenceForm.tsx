@@ -1,7 +1,8 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { Classe, Eleve, TypeAbsence } from "@/types";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
+import type { ClasseNiveau, Eleve, Salle, TypeAbsence } from "@/types";
 
 export interface AbsenceFormValues {
   eleve_id: string;
@@ -15,7 +16,8 @@ interface AbsenceFormProps {
   values: AbsenceFormValues;
   onChange: (field: keyof AbsenceFormValues, value: string) => void;
   eleves: Eleve[];
-  classes: Classe[];
+  salles: Salle[];
+  classesMap: Map<string, ClasseNiveau>;
   showEleveSelect?: boolean;
 }
 
@@ -23,7 +25,8 @@ export function AbsenceForm({
   values,
   onChange,
   eleves,
-  classes,
+  salles,
+  classesMap,
   showEleveSelect = true,
 }: AbsenceFormProps): React.JSX.Element {
   return (
@@ -55,9 +58,9 @@ export function AbsenceForm({
           required
         >
           <option value="">Sélectionner une classe</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          {salles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

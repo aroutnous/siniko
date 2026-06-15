@@ -10,8 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useHasPermission } from "@/hooks/useHasPermission";
+import { useClassesSelectData } from "@/hooks/useClassesSelectData";
 import { api } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import {
+  getClasseAbbreviation,
+  sortByClasseRefForSelect,
+} from "@/lib/etablissement-utils";
 import { FINANCE_API } from "@/lib/finance-api";
 import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
 import { REPORTING_API } from "@/lib/reporting-api";
@@ -110,6 +115,8 @@ function StatsPedagogiquesTab(): React.JSX.Element {
     },
   });
 
+  const { classesMap, cyclesMap } = useClassesSelectData();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["statistiques", anneeId],
     queryFn: async () => {
@@ -132,6 +139,12 @@ function StatsPedagogiquesTab(): React.JSX.Element {
     },
     enabled: Boolean(classeId && periodeId),
   });
+
+  const parClasseSelect = useMemo(
+    () =>
+      sortByClasseRefForSelect(stats?.eleves.par_classe ?? [], classesMap, cyclesMap),
+    [stats, classesMap, cyclesMap],
+  );
 
   const tauxChart = useMemo(
     () =>
@@ -239,9 +252,9 @@ function StatsPedagogiquesTab(): React.JSX.Element {
               className="max-w-xs"
             >
               <option value="">Classe (moyennes)</option>
-              {stats.eleves.par_classe.map((c) => (
+              {parClasseSelect.map((c) => (
                 <option key={c.classe_id} value={c.classe_id}>
-                  {c.nom}
+                  {getClasseAbbreviation(c.nom)}
                 </option>
               ))}
             </Select>

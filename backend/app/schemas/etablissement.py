@@ -113,8 +113,6 @@ class SalleCreate(BaseModel):
             object.__setattr__(self, "classe_id", self.niveau_id)
         if self.classe_id is None:
             raise ValueError("classe_id requis")
-        if self.capacite_max is not None and self.capacite is None:
-            object.__setattr__(self, "capacite", self.capacite_max)
         if not self.nom_salle and self.nom:
             object.__setattr__(self, "nom_salle", self.nom)
         if not self.nom and self.nom_salle:

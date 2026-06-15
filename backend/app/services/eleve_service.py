@@ -621,7 +621,9 @@ class EleveService:
         niveaux: dict[uuid.UUID, str] | None = None,
     ) -> str:
         if salle.nom_salle and salle.nom_salle.strip():
-            return salle.nom_salle.strip()
+            label = salle.nom_salle.strip()
+        else:
+            label = salle.nom.strip()
         niveau_nom = (niveaux or {}).get(salle.classe_id)
         if niveau_nom is None:
             niveau = (
@@ -633,12 +635,9 @@ class EleveService:
                 .first()
             )
             niveau_nom = niveau.nom if niveau else None
-        nom = salle.nom.strip()
         if niveau_nom:
-            if nom == niveau_nom or nom.startswith(f"{niveau_nom} "):
-                return nom
-            return f"{niveau_nom} {nom}".strip()
-        return nom
+            return f"{niveau_nom} - {label}"
+        return label
 
     def _salle_noms_par_eleve(
         self,

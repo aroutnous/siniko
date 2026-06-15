@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormModal } from "@/components/etablissement/FormModal";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
-import { buildNiveauxMap, formatSalleNom } from "@/lib/eleve-utils";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, ClasseNiveau, Inscription } from "@/types";
+import type { AnneeScolaire, Classe, Inscription } from "@/types";
 import { useState } from "react";
 
 interface TransfertModalProps {
@@ -41,16 +42,7 @@ export function TransfertModal({
     enabled: open,
   });
 
-  const { data: niveaux = [] } = useQuery({
-    queryKey: ["classes-niveau"],
-    queryFn: async () => {
-      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
-      return data;
-    },
-    enabled: open,
-  });
-
-  const niveauxMap = buildNiveauxMap(niveaux);
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: anneeActive } = useQuery({
     queryKey: ["annee-active"],
@@ -79,7 +71,7 @@ export function TransfertModal({
     onError: (err) => toast(getErrorMessage(err), "error"),
   });
 
-  const availableSalles = salles.filter((s) => s.id !== currentClasseId);
+  const availableSalles = sortedSalles.filter((s) => s.id !== currentClasseId);
 
   return (
     <FormModal
@@ -104,7 +96,7 @@ export function TransfertModal({
           <option value="">Sélectionner une salle</option>
           {availableSalles.map((s) => (
             <option key={s.id} value={s.id}>
-              {formatSalleNom(s, niveauxMap)}
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

@@ -16,6 +16,12 @@ import { usePedagogieAccess } from "@/hooks/usePedagogieAccess";
 import { api, getErrorMessage } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import {
+  buildClassesNiveauMap,
+  buildCyclesMap,
+  getSalleDisplayName,
+  sortSallesForSelect,
+} from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
 import {
@@ -95,6 +101,18 @@ export function SaisieNotesPage(): React.JSX.Element {
       return data;
     },
   });
+
+  const classesMap = useMemo(
+    () => buildClassesNiveauMap(classesNiveau),
+    [classesNiveau],
+  );
+
+  const cyclesMap = useMemo(() => buildCyclesMap(cycles), [cycles]);
+
+  const sortedSalles = useMemo(
+    () => sortSallesForSelect(salles, classesMap, cyclesMap),
+    [salles, classesMap, cyclesMap],
+  );
 
   const selectedSalle = salles.find((s) => s.id === classeId);
 
@@ -343,9 +361,9 @@ export function SaisieNotesPage(): React.JSX.Element {
           className="max-w-[220px]"
         >
           <option value="">Sélectionner une salle</option>
-          {salles.map((s) => (
+          {sortedSalles.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.nom_salle ?? s.nom}
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

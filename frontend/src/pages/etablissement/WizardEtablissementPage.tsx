@@ -56,6 +56,37 @@ function newLocalId(): string {
   return crypto.randomUUID();
 }
 
+function createSalleDraft(): SalleDraft {
+  return { localId: newLocalId(), nom_salle: "", capacite: "" };
+}
+
+/** Clone profond : chaque classe possède son propre tableau et chaque salle son propre objet. */
+function cloneSallesRecord(
+  prev: Record<string, SalleDraft[]>,
+): Record<string, SalleDraft[]> {
+  const next: Record<string, SalleDraft[]> = {};
+  for (const [classeKey, rows] of Object.entries(prev)) {
+    next[classeKey] = rows.map((s) => ({ ...s }));
+  }
+  return next;
+}
+
+function updateSalleField(
+  prev: Record<string, SalleDraft[]>,
+  classeKey: string,
+  localId: string,
+  patch: Partial<Pick<SalleDraft, "nom_salle" | "capacite">>,
+): Record<string, SalleDraft[]> {
+  const rows = prev[classeKey];
+  if (!rows) return prev;
+
+  const next = cloneSallesRecord(prev);
+  next[classeKey] = (next[classeKey] ?? []).map((s) =>
+    s.localId === localId ? { ...s, ...patch } : { ...s },
+  );
+  return next;
+}
+
 const CYCLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "Jardins d enfants": Baby,
   "1er Cycle": BookOpen,
@@ -92,7 +123,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
   const { data: anneeActive } = useQuery({
     queryKey: ["annee-active"],
     queryFn: async () => {
-      const { data } = await api.get<AnneeScolaire>(ETABLISSEMENT_API.anneeActive);
+      const { data } = await api.get<AnneeScolaire | null>(ETABLISSEMENT_API.anneeActive);
       return data;
     },
     retry: false,
@@ -263,17 +294,28 @@ export function WizardEtablissementPage(): React.JSX.Element {
     toggleCycle(cycle, false);
   };
 
+  const prepareSallesForStep4 = (): void => {
+    setSalles((prev) => {
+      const next = cloneSallesRecord(prev);
+      for (const { key } of selectedClassesList) {
+        if ((next[key]?.length ?? 0) === 0) {
+          next[key] = [createSalleDraft()];
+        }
+      }
+      return next;
+    });
+  };
+
   const ensureSalleDrafts = (keys: string[]): void => {
     if (keys.length === 0) return;
     setSalles((prev) => {
-      let changed = false;
-      const next = { ...prev };
+      const next = cloneSallesRecord(prev);
       for (const key of keys) {
-        if (next[key]?.length) continue;
-        next[key] = [{ localId: newLocalId(), nom_salle: "", capacite: "" }];
-        changed = true;
+        if ((next[key]?.length ?? 0) === 0) {
+          next[key] = [createSalleDraft()];
+        }
       }
-      return changed ? next : prev;
+      return next;
     });
   };
 
@@ -359,6 +401,9 @@ export function WizardEtablissementPage(): React.JSX.Element {
     }
     setStepError(null);
     if (step === 0) initPeriodesIfNeeded();
+    if (step === 3) {
+      prepareSallesForStep4();
+    }
     if (step < 4) setStep((step + 1) as StepIndex);
   };
 
@@ -653,35 +698,38 @@ export function WizardEtablissementPage(): React.JSX.Element {
                                 <div className="min-w-[140px] flex-1 space-y-1">
                                   <Label>Nom salle</Label>
                                   <Input
+                                    key={`${key}-${salle.localId}-nom`}
                                     value={salle.nom_salle}
                                     placeholder="Salle A"
                                     onChange={(e) =>
-                                      setSalles((prev) => ({
-                                        ...prev,
-                                        [key]: (prev[key] ?? []).map((s) =>
-                                          s.localId === salle.localId
-                                            ? { ...s, nom_salle: e.target.value }
-                                            : s,
+                                      setSalles((prev) =>
+                                        updateSalleField(
+                                          prev,
+                                          key,
+                                          salle.localId,
+                                          { nom_salle: e.target.value },
                                         ),
-                                      }))
+                                      )
                                     }
                                   />
                                 </div>
                                 <div className="w-28 space-y-1">
                                   <Label>Capacité</Label>
                                   <Input
-                                    type="number"
-                                    min="1"
+                                    key={`${key}-${salle.localId}-capacite`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={salle.capacite}
                                     onChange={(e) =>
-                                      setSalles((prev) => ({
-                                        ...prev,
-                                        [key]: (prev[key] ?? []).map((s) =>
-                                          s.localId === salle.localId
-                                            ? { ...s, capacite: e.target.value }
-                                            : s,
+                                      setSalles((prev) =>
+                                        updateSalleField(
+                                          prev,
+                                          key,
+                                          salle.localId,
+                                          { capacite: e.target.value },
                                         ),
-                                      }))
+                                      )
                                     }
                                   />
                                 </div>
@@ -713,10 +761,7 @@ export function WizardEtablissementPage(): React.JSX.Element {
                             onClick={() =>
                               setSalles((prev) => ({
                                 ...prev,
-                                [key]: [
-                                  ...(prev[key] ?? []),
-                                  { localId: newLocalId(), nom_salle: "", capacite: "" },
-                                ],
+                                [key]: [...(prev[key] ?? []), createSalleDraft()],
                               }))
                             }
                           >

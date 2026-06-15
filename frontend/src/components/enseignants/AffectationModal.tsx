@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { FormModal } from "@/components/etablissement/FormModal";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useClassesSelectData } from "@/hooks/useClassesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { ENSEIGNANTS_API } from "@/lib/enseignants-api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getClasseAbbreviation } from "@/lib/etablissement-utils";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, Matiere } from "@/types";
+import type { AnneeScolaire, Matiere } from "@/types";
 
 export type AffectationMode = "matiere" | "classe";
 
@@ -50,14 +52,7 @@ export function AffectationModal({
     enabled: open && mode === "matiere",
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
-    queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
-      return data;
-    },
-    enabled: open,
-  });
+  const { sortedClasses } = useClassesSelectData({ enabled: open });
 
   const { data: annees = [] } = useQuery({
     queryKey: ["annees-scolaires"],
@@ -150,9 +145,9 @@ export function AffectationModal({
               onChange={(e) => setClasseId(e.target.value)}
             >
               <option value="">Toutes les classes</option>
-              {classes.map((c) => (
+              {sortedClasses.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nom}
+                  {getClasseAbbreviation(c.nom)}
                 </option>
               ))}
             </Select>
@@ -169,9 +164,9 @@ export function AffectationModal({
               required
             >
               <option value="">Sélectionner</option>
-              {classes.map((c) => (
+              {sortedClasses.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nom}
+                  {getClasseAbbreviation(c.nom)}
                 </option>
               ))}
             </Select>

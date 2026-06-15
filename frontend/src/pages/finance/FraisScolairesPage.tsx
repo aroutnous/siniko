@@ -11,11 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useFinanceAccess } from "@/hooks/useFinanceAccess";
+import { useClassesSelectData } from "@/hooks/useClassesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getClasseAbbreviation } from "@/lib/etablissement-utils";
 import { FINANCE_API } from "@/lib/finance-api";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, ClasseNiveau, FraisScolaire } from "@/types";
+import type { AnneeScolaire, FraisScolaire } from "@/types";
 
 interface FraisForm {
   libelle: string;
@@ -46,13 +48,7 @@ export function FraisScolairesPage(): React.JSX.Element {
   const [form, setForm] = useState<FraisForm>(INITIAL);
   const [anneeFilter, setAnneeFilter] = useState("");
 
-  const { data: classesNiveau = [] } = useQuery({
-    queryKey: ["classes-niveau"],
-    queryFn: async () => {
-      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
-      return data;
-    },
-  });
+  const { sortedClasses, classesMap } = useClassesSelectData();
 
   const { data: annees = [] } = useQuery({
     queryKey: ["annees-scolaires"],
@@ -73,8 +69,8 @@ export function FraisScolairesPage(): React.JSX.Element {
   });
 
   const classeMap = useMemo(
-    () => new Map(classesNiveau.map((c) => [c.id, c.nom])),
-    [classesNiveau],
+    () => new Map([...classesMap.entries()].map(([id, c]) => [id, c.nom])),
+    [classesMap],
   );
   const anneeMap = useMemo(() => new Map(annees.map((a) => [a.id, a.libelle])), [annees]);
 
@@ -202,9 +198,9 @@ export function FraisScolairesPage(): React.JSX.Element {
               required
             >
               <option value="">Sélectionner</option>
-              {classesNiveau.map((c) => (
+              {sortedClasses.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nom}
+                  {getClasseAbbreviation(c.nom)}
                 </option>
               ))}
             </Select>

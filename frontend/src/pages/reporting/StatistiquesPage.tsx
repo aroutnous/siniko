@@ -7,8 +7,13 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useClassesSelectData } from "@/hooks/useClassesSelectData";
 import { api } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import {
+  getClasseAbbreviation,
+  sortByClasseRefForSelect,
+} from "@/lib/etablissement-utils";
 import { PEDAGOGIE_API } from "@/lib/pedagogie-api";
 import { REPORTING_API } from "@/lib/reporting-api";
 import type {
@@ -42,6 +47,8 @@ export function StatistiquesPage(): React.JSX.Element {
     },
   });
 
+  const { classesMap, cyclesMap } = useClassesSelectData();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["statistiques", anneeId],
     queryFn: async () => {
@@ -64,6 +71,12 @@ export function StatistiquesPage(): React.JSX.Element {
     },
     enabled: Boolean(classeId && periodeId),
   });
+
+  const parClasseSelect = useMemo(
+    () =>
+      sortByClasseRefForSelect(stats?.eleves.par_classe ?? [], classesMap, cyclesMap),
+    [stats, classesMap, cyclesMap],
+  );
 
   const classeChart = useMemo(
     () =>
@@ -230,9 +243,9 @@ export function StatistiquesPage(): React.JSX.Element {
                     className="max-w-[200px]"
                   >
                     <option value="">Classe</option>
-                    {stats.eleves.par_classe.map((c) => (
+                    {parClasseSelect.map((c) => (
                       <option key={c.classe_id} value={c.classe_id}>
-                        {c.nom}
+                        {getClasseAbbreviation(c.nom)}
                       </option>
                     ))}
                   </Select>

@@ -2,6 +2,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { ExportButton } from "@/components/reporting/ExportButton";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -9,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { REPORTING_API } from "@/lib/reporting-api";
 import { useExportHistoryStore } from "@/stores/exportHistoryStore";
-import type { AnneeScolaire, Classe, Periode } from "@/types";
+import type { AnneeScolaire, Periode, Salle } from "@/types";
 
 export function ExportsPage(): React.JSX.Element {
   const { items, clear } = useExportHistoryStore();
@@ -27,13 +29,15 @@ export function ExportsPage(): React.JSX.Element {
     },
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: periodes = [] } = useQuery({
     queryKey: ["periodes"],
@@ -91,9 +95,9 @@ export function ExportsPage(): React.JSX.Element {
                 className="max-w-[200px]"
               >
                 <option value="">Sélectionner</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nom}
+                {sortedSalles.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
                   </option>
                 ))}
               </Select>

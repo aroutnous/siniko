@@ -11,12 +11,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useElevesAccess } from "@/hooks/useElevesAccess";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { ROUTES } from "@/lib/constants";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, EleveInscrireResponse } from "@/types";
+import type { AnneeScolaire, EleveInscrireResponse, Salle } from "@/types";
 
 interface InscriptionForm {
   nom: string;
@@ -51,13 +53,15 @@ export function InscriptionPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<EleveInscrireResponse | null>(null);
 
-  const { data: classes = [], isLoading: loadingClasses } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [], isLoading: loadingClasses } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: anneeActive, isLoading: loadingAnnee } = useQuery({
     queryKey: ["annee-active"],
@@ -249,9 +253,9 @@ export function InscriptionPage(): React.JSX.Element {
                 required
               >
                 <option value="">Sélectionner une classe</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nom}
+                {sortedSalles.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
                   </option>
                 ))}
               </Select>

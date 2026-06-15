@@ -18,13 +18,15 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useElevesAccess } from "@/hooks/useElevesAccess";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
-import { buildNiveauxMap, formatSalleNom, resolveSalleNom } from "@/lib/eleve-utils";
+import { resolveSalleNom } from "@/lib/eleve-utils";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { ROUTES } from "@/lib/constants";
 import { useToastStore } from "@/stores/toastStore";
-import type { AnneeScolaire, Classe, ClasseNiveau, Eleve, EleveListItem } from "@/types";
+import type { AnneeScolaire, Classe, Eleve, EleveListItem } from "@/types";
 
 const PAGE_SIZE = 10;
 
@@ -62,15 +64,12 @@ export function ElevesListPage(): React.JSX.Element {
     },
   });
 
-  const { data: niveaux = [] } = useQuery({
-    queryKey: ["classes-niveau"],
-    queryFn: async () => {
-      const { data } = await api.get<ClasseNiveau[]>(ETABLISSEMENT_API.classesNiveau);
-      return data;
-    },
-  });
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
-  const niveauxMap = useMemo(() => buildNiveauxMap(niveaux), [niveaux]);
+  const niveauxMap = useMemo(
+    () => new Map([...classesMap.entries()].map(([id, c]) => [id, c.nom])),
+    [classesMap],
+  );
 
   const { data: annees = [] } = useQuery({
     queryKey: ["annees-scolaires"],
@@ -229,9 +228,9 @@ export function ElevesListPage(): React.JSX.Element {
           className="max-w-[220px]"
         >
           <option value="">Toutes les classes</option>
-          {salles.map((s) => (
+          {sortedSalles.map((s) => (
             <option key={s.id} value={s.id}>
-              {formatSalleNom(s, niveauxMap)}
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

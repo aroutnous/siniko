@@ -13,17 +13,19 @@ import { Select } from "@/components/ui/select";
 import { api, getErrorMessage } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
 import { formatDecimal } from "@/lib/pedagogie-utils";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { useToastStore } from "@/stores/toastStore";
 import type {
-  Classe,
   ClassementEleve,
   Eleve,
   Matiere,
   Periode,
   ResultatsClasse,
+  Salle,
 } from "@/types";
 
 interface ClassementRow extends ClassementEleve {
@@ -37,13 +39,15 @@ export function ResultatsClassePage(): React.JSX.Element {
   const [periodeId, setPeriodeId] = useState("");
   const [exporting, setExporting] = useState(false);
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
 
   const { data: periodes = [] } = useQuery({
     queryKey: ["periodes"],
@@ -139,7 +143,10 @@ export function ResultatsClassePage(): React.JSX.Element {
     if (!classeId || !periodeId) return;
     setExporting(true);
     try {
-      const classeNom = classes.find((c) => c.id === classeId)?.nom ?? "classe";
+      const salle = salles.find((s) => s.id === classeId);
+      const classeNom = salle
+        ? getSalleDisplayName(salle, classesMap.get(salle.classe_id) ?? null)
+        : "classe";
       await downloadFile(
         REPORTING_API.exportResultatsClasse,
         `resultats-${classeNom}.xlsx`,
@@ -179,9 +186,9 @@ export function ResultatsClassePage(): React.JSX.Element {
           className="max-w-[220px]"
         >
           <option value="">Sélectionner une classe</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nom}
+          {sortedSalles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
             </option>
           ))}
         </Select>

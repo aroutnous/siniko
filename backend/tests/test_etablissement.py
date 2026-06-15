@@ -114,6 +114,17 @@ async def test_create_salle(
 
 
 @pytest.mark.asyncio
+async def test_get_annee_active_absente(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Sans année active configurée : 200 + null (pas de 404)."""
+    response = await async_client.get("/annees-scolaires/active", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+@pytest.mark.asyncio
 async def test_activer_annee_scolaire(
     async_client: AsyncClient,
     auth_headers: dict[str, str],

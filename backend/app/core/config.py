@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     allowed_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173"],
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://localhost",
+            "http://localhost:80",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80",
+        ],
         alias="ALLOWED_ORIGINS",
     )
     mobile_money_webhook_secret: str = Field(

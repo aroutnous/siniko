@@ -19,21 +19,23 @@ import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useHasPermission } from "@/hooks/useHasPermission";
 import { useMenuAccess } from "@/hooks/useMenuAccess";
+import { useSallesSelectData } from "@/hooks/useSallesSelectData";
 import { api, getErrorMessage } from "@/lib/api";
 import { downloadPdf } from "@/lib/download";
 import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
+import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { FINANCE_API, REPORTING_FINANCE_API } from "@/lib/finance-api";
 import { getEleveClasseId, resolveClasseNom } from "@/lib/eleve-utils";
 import { useToastStore } from "@/stores/toastStore";
 import type {
   AnneeScolaire,
-  Classe,
   DossierEleve,
   Eleve,
   FraisScolaire,
   Impaye,
   Paiement,
+  Salle,
   StatutPaiement,
 } from "@/types";
 
@@ -106,14 +108,21 @@ export function PaiementsPage(): React.JSX.Element {
     enabled: canRetards,
   });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+  const { data: salles = [] } = useQuery({
+    queryKey: ["salles"],
     queryFn: async () => {
-      const { data } = await api.get<Classe[]>(ETABLISSEMENT_API.classes);
+      const { data } = await api.get<Salle[]>(ETABLISSEMENT_API.salles);
       return data;
     },
     enabled: canRetards,
   });
+
+  const { sortedSalles, classesMap } = useSallesSelectData(salles);
+
+  const niveauxMap = useMemo(
+    () => new Map([...classesMap.entries()].map(([id, c]) => [id, c.nom])),
+    [classesMap],
+  );
 
   const { data: frais = [] } = useQuery({
     queryKey: ["frais", anneeActive?.id],
@@ -431,9 +440,9 @@ export function PaiementsPage(): React.JSX.Element {
                 className="max-w-xs"
               >
                 <option value="">Toutes les classes</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nom}
+                {sortedSalles.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {getSalleDisplayName(s, classesMap.get(s.classe_id) ?? null)}
                   </option>
                 ))}
               </Select>
@@ -443,7 +452,8 @@ export function PaiementsPage(): React.JSX.Element {
               loading={loadingImpayes}
               anneeId={anneeRetards}
               classeFilter={classeRetards}
-              classes={classes}
+              salles={salles}
+              niveauxMap={niveauxMap}
             />
           </TabsContent>
         ) : null}
@@ -500,13 +510,15 @@ function RetardsTable({
   loading,
   anneeId,
   classeFilter,
-  classes,
+  salles,
+  niveauxMap,
 }: {
   impayes: Impaye[];
   loading: boolean;
   anneeId: string;
   classeFilter: string;
-  classes: Classe[];
+  salles: Salle[];
+  niveauxMap: Map<string, string>;
 }): React.JSX.Element {
   const sorted = useMemo(
     () => [...impayes].sort((a, b) => Number(b.montant_restant) - Number(a.montant_restant)),
@@ -536,13 +548,13 @@ function RetardsTable({
         return {
           ...row,
           id: row.eleve_id,
-          classe_nom: resolveClasseNom(eleveClasseId, classes),
+          classe_nom: resolveClasseNom(eleveClasseId, salles, niveauxMap),
           eleveClasseId,
         };
       })
       .filter((row) => !classeFilter || row.eleveClasseId === classeFilter)
       .map(({ eleveClasseId: _c, ...rest }) => rest);
-  }, [sorted, dossierQueries.data, classes, classeFilter]);
+  }, [sorted, dossierQueries.data, salles, niveauxMap, classeFilter]);
 
   const columns: DataTableColumn<ImpayeRow>[] = [
     {
