@@ -13,6 +13,7 @@ from app.models.enums import RoleUtilisateur, StatutEleve, StatutTenant, StatutU
 from app.models.pedagogie import BulletinLigne
 from app.models.tenant import Tenant
 from app.services.calcul_service import CalculService
+from app.services.pedagogie_service import agreger_statut_competence
 from tests.conftest import TEST_PASSWORD
 from tests.establishment_helpers import create_test_structure
 from tests.permission_helpers import grant_role_permissions
@@ -190,6 +191,133 @@ def test_get_mention(moyenne: float, mention: str) -> None:
     assert CalculService.get_mention(moyenne) == mention
 
 
+def _note_item_qualitative(
+    ctx: dict[str, object],
+    eleve_id: str,
+    matiere_id: str,
+    valeur_qualitative: str,
+) -> dict:
+    return {
+        "eleve_id": eleve_id,
+        "matiere_id": matiere_id,
+        "periode_id": ctx["periode_id"],
+        "classe_id": ctx["classe_id"],
+        "valeur_qualitative": valeur_qualitative,
+    }
+
+
+async def _create_pedagogie_context_qualitative(
+    client: AsyncClient,
+    headers: dict[str, str],
+    *,
+    nb_eleves: int = 1,
+) -> dict[str, object]:
+    cycle = await client.post(
+        "/cycles",
+        json={"nom": "Jardins d enfants", "ordre": 1, "type_evaluation": "qualitative"},
+        headers=headers,
+    )
+    assert cycle.status_code == 201
+
+    classe = await client.post(
+        "/classes",
+        json={
+            "cycle_id": cycle.json()["id"],
+            "nom": "Petite Section",
+            "ordre": 1,
+        },
+        headers=headers,
+    )
+    assert classe.status_code == 201
+
+    annee = await client.post(
+        "/annees-scolaires",
+        json={
+            "libelle": "2025-2026",
+            "date_debut": "2025-09-01",
+            "date_fin": "2026-06-30",
+            "est_active": True,
+        },
+        headers=headers,
+    )
+    assert annee.status_code == 201
+
+    salle = await client.post(
+        "/salles",
+        json={
+            "classe_id": classe.json()["id"],
+            "annee_scolaire_id": annee.json()["id"],
+            "nom_salle": "A",
+            "capacite": 25,
+        },
+        headers=headers,
+    )
+    assert salle.status_code == 201
+
+    periode = await client.post(
+        "/periodes",
+        json={
+            "annee_scolaire_id": annee.json()["id"],
+            "nom": "1er Trimestre",
+            "date_debut": "2025-09-01",
+            "date_fin": "2025-12-20",
+            "ordre": 1,
+        },
+        headers=headers,
+    )
+    assert periode.status_code == 201
+
+    langage = await client.post(
+        "/matieres",
+        json={"classe_id": classe.json()["id"], "nom": "Langage", "coefficient": "1"},
+        headers=headers,
+    )
+    assert langage.status_code == 201
+
+    motricite = await client.post(
+        "/matieres",
+        json={"classe_id": classe.json()["id"], "nom": "Motricité", "coefficient": "1"},
+        headers=headers,
+    )
+    assert motricite.status_code == 201
+
+    eleve_ids: list[str] = []
+    for i in range(nb_eleves):
+        inscrit = await client.post(
+            "/eleves/inscrire",
+            json={
+                "nom": f"Quali{i}",
+                "prenom": "Test",
+                "classe_id": salle.json()["id"],
+                "annee_scolaire_id": annee.json()["id"],
+            },
+            headers=headers,
+        )
+        assert inscrit.status_code == 201
+        eleve_ids.append(inscrit.json()["eleve"]["id"])
+
+    return {
+        "classe_id": salle.json()["id"],
+        "periode_id": periode.json()["id"],
+        "matiere_langage_id": langage.json()["id"],
+        "matiere_motricite_id": motricite.json()["id"],
+        "eleve_ids": eleve_ids,
+    }
+
+
+@pytest.mark.parametrize(
+    ("statuts", "attendu"),
+    [
+        (["acquis", "acquis"], "acquis"),
+        (["acquis", "non_acquis"], "non_acquis"),
+        (["acquis", "en_cours_acquisition"], "en_cours_acquisition"),
+        ([], None),
+    ],
+)
+def test_agreger_statut_competence(statuts: list[str], attendu: str | None) -> None:
+    assert agreger_statut_competence(statuts) == attendu
+
+
 @pytest.mark.asyncio
 async def test_generation_bulletins_classe(
     async_client: AsyncClient,
@@ -221,8 +349,58 @@ async def test_generation_bulletins_classe(
     bulletins = response.json()
     assert len(bulletins) == 2
     assert all(b["statut"] == "brouillon" for b in bulletins)
+    assert all(b["type_bulletin"] == "chiffre" for b in bulletins)
     assert all(b["rang"] is not None for b in bulletins)
     assert all(len(b["lignes"]) == 2 for b in bulletins)
+
+
+@pytest.mark.asyncio
+async def test_generation_bulletins_competences_qualitatif(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    ctx = await _create_pedagogie_context_qualitative(async_client, auth_headers)
+    eleve_id = ctx["eleve_ids"][0]
+
+    await async_client.post(
+        "/pedagogie/notes/batch",
+        json={
+            "notes": [
+                _note_item_qualitative(
+                    ctx, eleve_id, ctx["matiere_langage_id"], "non_acquis"
+                ),
+                _note_item_qualitative(
+                    ctx, eleve_id, ctx["matiere_motricite_id"], "acquis"
+                ),
+            ]
+        },
+        headers=auth_headers,
+    )
+
+    response = await async_client.post(
+        "/pedagogie/bulletins/generer",
+        json={
+            "classe_id": ctx["classe_id"],
+            "periode_id": ctx["periode_id"],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    bulletins = response.json()
+    assert len(bulletins) == 1
+    bulletin = bulletins[0]
+    assert bulletin["type_bulletin"] == "competences"
+    assert bulletin["moyenne_generale"] is None
+    assert bulletin["rang"] is None
+    assert bulletin["mention"] is None
+    assert bulletin["effectif_classe"] == 1
+    assert len(bulletin["lignes"]) == 2
+    statuts = {l["statut_competence"] for l in bulletin["lignes"]}
+    assert statuts == {"non_acquis", "acquis"}
+    for ligne in bulletin["lignes"]:
+        assert ligne["note"] is None
+        assert ligne["moyenne_classe"] is None
+        assert ligne["coefficient"] is None
 
 
 @pytest.mark.asyncio

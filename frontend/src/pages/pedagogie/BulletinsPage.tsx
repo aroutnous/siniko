@@ -18,8 +18,9 @@ import { ETABLISSEMENT_API } from "@/lib/etablissement-api";
 import { getSalleDisplayName } from "@/lib/etablissement-utils";
 import { ELEVES_API } from "@/lib/eleves-api";
 import { PEDAGOGIE_API, REPORTING_API } from "@/lib/pedagogie-api";
+import { StatutCompetenceBadge } from "@/components/pedagogie/StatutCompetenceBadge";
 import { useToastStore } from "@/stores/toastStore";
-import { formatDecimal, formatStatutCompetence } from "@/lib/pedagogie-utils";
+import { formatDecimal } from "@/lib/pedagogie-utils";
 import type { Bulletin, Eleve, Matiere, Periode, Salle, StatutBulletin } from "@/types";
 
 const STATUT_LABELS: Record<StatutBulletin, string> = {
@@ -190,12 +191,18 @@ export function BulletinsPage(): React.JSX.Element {
             render: (r: BulletinRow) => {
               const lignes = r.lignes ?? [];
               if (lignes.length === 0) return "—";
-              return lignes
-                .map(
-                  (l) =>
-                    `${matieresMap.get(l.matiere_id) ?? "Domaine"} : ${formatStatutCompetence(l.statut_competence)}`,
-                )
-                .join(" · ");
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {lignes.map((l) => (
+                    <span key={l.id} className="inline-flex items-center gap-1">
+                      <span className="text-muted-foreground">
+                        {matieresMap.get(l.matiere_id) ?? "Domaine"} :
+                      </span>
+                      <StatutCompetenceBadge statut={l.statut_competence} />
+                    </span>
+                  ))}
+                </div>
+              );
             },
           },
         ]

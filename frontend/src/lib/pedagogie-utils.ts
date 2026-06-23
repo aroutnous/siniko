@@ -17,6 +17,21 @@ export function formatStatutCompetence(value: string | null | undefined): string
   return STATUT_COMPETENCE_LABELS[value] ?? value;
 }
 
+export function statutCompetenceBadgeVariant(
+  value: string | null | undefined,
+): "success" | "warning" | "destructive" | "muted" {
+  switch (value) {
+    case "acquis":
+      return "success";
+    case "en_cours_acquisition":
+      return "warning";
+    case "non_acquis":
+      return "destructive";
+    default:
+      return "muted";
+  }
+}
+
 /** Nom du cycle fondamental utilisant les séquences (compositions mensuelles). */
 export const CYCLE_1ER = "1er Cycle";
 

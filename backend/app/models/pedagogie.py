@@ -128,7 +128,7 @@ class BulletinLigne(Base):
     )
     note: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     moyenne_classe: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
-    coefficient: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True, default=1)
+    coefficient: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     statut_competence: Mapped[str | None] = mapped_column(String(30), nullable=True)
     appreciation: Mapped[str | None] = mapped_column(Text, nullable=True)
 

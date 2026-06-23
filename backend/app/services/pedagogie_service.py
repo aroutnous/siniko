@@ -34,6 +34,19 @@ from app.services.calcul_service import CalculService
 
 
 _CYCLE_1ER = "1er Cycle"
+_STATUTS_COMPETENCE = frozenset({"acquis", "en_cours_acquisition", "non_acquis"})
+
+
+def agreger_statut_competence(statuts: list[str]) -> str | None:
+    """Agrège les notes qualitatives d'un domaine sur une période."""
+    valides = [s for s in statuts if s in _STATUTS_COMPETENCE]
+    if not valides:
+        return None
+    if any(s == "non_acquis" for s in valides):
+        return "non_acquis"
+    if all(s == "acquis" for s in valides):
+        return "acquis"
+    return "en_cours_acquisition"
 
 
 class PedagogieService:
@@ -288,8 +301,9 @@ class PedagogieService:
 
             bulletins_generes.append(bulletin)
 
-        self.db.commit()
-        return [self._bulletin_to_response(b) for b in bulletins_generes]
+        return self._finalize_bulletins_generation(
+            bulletins_generes, data, "chiffre"
+        )
 
     def _generer_bulletins_competences(
         self,
@@ -370,22 +384,58 @@ class PedagogieService:
                 self.db.add(bulletin)
                 self.db.flush()
 
+            notes_par_matiere: dict[uuid.UUID, list[Note]] = {}
             for note in notes_par_eleve.get(eleve_id, []):
+                if note.matiere_id is None:
+                    continue
+                notes_par_matiere.setdefault(note.matiere_id, []).append(note)
+
+            for matiere_id, matiere_notes in notes_par_matiere.items():
+                statut = agreger_statut_competence(
+                    [n.valeur_qualitative for n in matiere_notes if n.valeur_qualitative]
+                )
+                if statut is None:
+                    continue
+                appreciation = next(
+                    (n.appreciation for n in matiere_notes if n.appreciation),
+                    None,
+                )
                 ligne = BulletinLigne(
                     bulletin_id=bulletin.id,
-                    matiere_id=note.matiere_id,
+                    matiere_id=matiere_id,
                     note=None,
                     moyenne_classe=None,
                     coefficient=None,
-                    statut_competence=note.valeur_qualitative,
-                    appreciation=note.appreciation,
+                    statut_competence=statut,
+                    appreciation=appreciation,
                 )
                 self.db.add(ligne)
 
             bulletins_generes.append(bulletin)
 
+        return self._finalize_bulletins_generation(
+            bulletins_generes, data, "competences"
+        )
+
+    def _finalize_bulletins_generation(
+        self,
+        bulletins: list[Bulletin],
+        data: BulletinGenererRequest,
+        type_bulletin: str,
+    ) -> list[BulletinResponse]:
         self.db.commit()
-        return [self._bulletin_to_response(b) for b in bulletins_generes]
+        self._audit(
+            "pedagogy.bulletin.generate",
+            "bulletins",
+            bulletins[0].id if bulletins else None,
+            details={
+                "classe_id": str(data.classe_id),
+                "periode_id": str(data.periode_id),
+                "type_bulletin": type_bulletin,
+                "count": len(bulletins),
+            },
+        )
+        return [self._bulletin_to_response(b) for b in bulletins]
 
     def valider_bulletin(
         self,

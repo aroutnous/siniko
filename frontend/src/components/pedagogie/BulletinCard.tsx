@@ -1,10 +1,11 @@
 import { Download } from "lucide-react";
 
 import { MentionBadge } from "@/components/pedagogie/MentionBadge";
+import { StatutCompetenceBadge } from "@/components/pedagogie/StatutCompetenceBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDecimal, formatStatutCompetence } from "@/lib/pedagogie-utils";
+import { formatDecimal } from "@/lib/pedagogie-utils";
 import type { Bulletin, StatutBulletin } from "@/types";
 
 const STATUT_CONFIG: Record<
@@ -62,18 +63,34 @@ export function BulletinCard({
             <Badge variant={statutMeta.variant}>{statutMeta.label}</Badge>
           </div>
           {isCompetences && bulletin.lignes && bulletin.lignes.length > 0 ? (
-            <ul className="mt-3 space-y-1 text-sm">
-              {bulletin.lignes.map((ligne) => (
-                <li key={ligne.id} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">
-                    {matieresMap?.get(ligne.matiere_id) ?? "Domaine"}
-                  </span>
-                  <span className="font-medium">
-                    {formatStatutCompetence(ligne.statut_competence)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Domaine de compétence</th>
+                    <th className="pb-2 font-medium">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulletin.lignes.map((ligne) => (
+                    <tr key={ligne.id} className="border-b border-border/60 last:border-0">
+                      <td className="py-2 pr-4">
+                        {matieresMap?.get(ligne.matiere_id) ?? "Domaine"}
+                      </td>
+                      <td className="py-2">
+                        <StatutCompetenceBadge statut={ligne.statut_competence} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {isCompetences && bulletin.appreciation_generale ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Appréciation générale :</span>{" "}
+              {bulletin.appreciation_generale}
+            </p>
           ) : null}
         </div>
         <div className="flex gap-2">

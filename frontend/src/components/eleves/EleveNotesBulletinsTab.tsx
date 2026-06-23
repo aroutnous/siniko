@@ -3,6 +3,7 @@ import { Eye } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { MentionBadge } from "@/components/pedagogie/MentionBadge";
+import { StatutCompetenceBadge } from "@/components/pedagogie/StatutCompetenceBadge";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Badge } from "@/components/ui/badge";
@@ -232,21 +233,42 @@ export function EleveNotesBulletinsTab({
               </p>
             ) : null}
             {detailBulletin.lignes && detailBulletin.lignes.length > 0 ? (
-              <ul className="divide-y rounded-lg border">
-                {detailBulletin.lignes.map((ligne) => (
-                  <li
-                    key={ligne.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2"
-                  >
-                    <span>{matiereMap.get(ligne.matiere_id) ?? "Matière"}</span>
-                    <span className="font-medium">
-                      {ligne.note != null
-                        ? ligne.note
-                        : formatStatutCompetence(ligne.statut_competence)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              detailBulletin.type_bulletin === "competences" ? (
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="px-3 py-2 font-medium">Domaine de compétence</th>
+                        <th className="px-3 py-2 font-medium">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailBulletin.lignes.map((ligne) => (
+                        <tr key={ligne.id} className="border-b last:border-0">
+                          <td className="px-3 py-2">
+                            {matiereMap.get(ligne.matiere_id) ?? "Matière"}
+                          </td>
+                          <td className="px-3 py-2">
+                            <StatutCompetenceBadge statut={ligne.statut_competence} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <ul className="divide-y rounded-lg border">
+                  {detailBulletin.lignes.map((ligne) => (
+                    <li
+                      key={ligne.id}
+                      className="flex items-center justify-between gap-2 px-3 py-2"
+                    >
+                      <span>{matiereMap.get(ligne.matiere_id) ?? "Matière"}</span>
+                      <span className="font-medium">{ligne.note ?? "—"}</span>
+                    </li>
+                  ))}
+                </ul>
+              )
             ) : (
               <p className="text-muted-foreground">Aucune ligne de bulletin.</p>
             )}
