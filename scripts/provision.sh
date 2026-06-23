@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Kalanko (ex-SINIKO) — Provisioning VPS Ubuntu 24.04 LTS
+# Kalanko — Provisioning VPS Ubuntu 24.04 LTS
 # =============================================================================
 # Usage (en root sur le VPS) :
 #   curl -fsSL ... -o /root/provision.sh && chmod +x /root/provision.sh
@@ -27,9 +27,9 @@ readonly API_DOMAIN="api.${DOMAIN}"
 readonly TZ_UTC="UTC"
 
 # Conteneur PostgreSQL Docker (nom par défaut du docker-compose du repo)
-readonly POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-siniko_db}"
-readonly POSTGRES_DB="${POSTGRES_DB:-siniko}"
-readonly POSTGRES_USER="${POSTGRES_USER:-siniko_user}"
+readonly POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-kalanko_db}"
+readonly POSTGRES_DB="${POSTGRES_DB:-kalanko}"
+readonly POSTGRES_USER="${POSTGRES_USER:-kalanko_user}"
 
 # Clé SSH publique optionnelle (fichier ou variable d'environnement)
 readonly PROVISION_SSH_PUBKEY_FILE="${PROVISION_SSH_PUBKEY_FILE:-}"
@@ -323,7 +323,7 @@ section_project_layout() {
 # =============================================================================
 
 # PostgreSQL (service Docker "db")
-# DATABASE_URL=postgresql://USER:PASSWORD@db:5432/siniko
+# DATABASE_URL=postgresql://USER:PASSWORD@db:5432/kalanko
 
 # Redis (service Docker "redis")
 # REDIS_URL=redis://redis:6379
@@ -365,9 +365,9 @@ section_backup() {
 set -euo pipefail
 
 KALANKO_BACKUPS="/opt/kalanko/backups"
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-siniko_db}"
-POSTGRES_DB="${POSTGRES_DB:-siniko}"
-POSTGRES_USER="${POSTGRES_USER:-siniko_user}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-kalanko_db}"
+POSTGRES_DB="${POSTGRES_DB:-kalanko}"
+POSTGRES_USER="${POSTGRES_USER:-kalanko_user}"
 RETENTION_DAYS=7
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_FILE="${KALANKO_BACKUPS}/kalanko_${TIMESTAMP}.sql.gz"

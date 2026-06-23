@@ -13,7 +13,7 @@ variable "environment" {
 variable "project_name" {
   description = "Nom du projet"
   type        = string
-  default     = "siniko"
+  default     = "kalanko"
 }
 
 variable "db_password" {

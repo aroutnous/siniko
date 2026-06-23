@@ -1,3 +1,4 @@
+name: kalanko
 
 services:
 
@@ -6,17 +7,17 @@ services:
   # =====================
   db:
     image: postgres:16-alpine
-    container_name: siniko_db
+    container_name: kalanko_db
     environment:
-      POSTGRES_DB: siniko
-      POSTGRES_USER: siniko_user
-      POSTGRES_PASSWORD: siniko_dev_password
+      POSTGRES_DB: kalanko
+      POSTGRES_USER: kalanko_user
+      POSTGRES_PASSWORD: kalanko_dev_password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U siniko_user -d siniko"]
+      test: ["CMD-SHELL", "pg_isready -U kalanko_user -d kalanko"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,7 +27,7 @@ services:
   # =====================
   redis:
     image: redis:7-alpine
-    container_name: siniko_redis
+    container_name: kalanko_redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -40,13 +41,13 @@ services:
   # =====================
   backend:
     build: ./backend
-    container_name: siniko_backend
+    container_name: kalanko_backend
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://siniko_user:siniko_dev_password@db:5432/siniko
+      DATABASE_URL: postgresql://kalanko_user:kalanko_dev_password@db:5432/kalanko
       REDIS_URL: redis://redis:6379
       ALLOWED_ORIGINS: http://localhost,http://localhost:80,http://localhost:5173,http://127.0.0.1,http://127.0.0.1:80
     depends_on:
@@ -60,7 +61,7 @@ services:
   # =====================
   frontend:
     build: ./frontend
-    container_name: siniko_frontend
+    container_name: kalanko_frontend
     ports:
       - "80:80"
     depends_on:
@@ -71,7 +72,7 @@ services:
   # =====================
   adminer:
     image: adminer:latest
-    container_name: siniko_adminer
+    container_name: kalanko_adminer
     ports:
       - "8080:8080"
     depends_on:

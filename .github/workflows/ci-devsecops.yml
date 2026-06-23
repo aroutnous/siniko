@@ -1,4 +1,4 @@
-name: CI — DevSecOps SINIKO
+name: CI — DevSecOps KALANKO
 
 on:
   push:

@@ -72,6 +72,13 @@ _DROP_TABLE_SEQUENCES_EVALUATION = (
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "sequences_evaluation" in inspector.get_table_names():
+        note_columns = {col["name"] for col in inspector.get_columns("notes")}
+        if "sequence_id" in note_columns:
+            return
+
     op.create_table(
         "sequences_evaluation",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),

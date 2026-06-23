@@ -159,7 +159,7 @@ export function AppLayout(): React.JSX.Element {
         <div className="flex items-center gap-2 border-b border-border px-6 py-5">
           <Building2 className="h-7 w-7 text-primary" />
           <div>
-            <p className="font-bold text-primary">SINIKO</p>
+            <p className="font-bold text-primary">KALANKO</p>
             <p className="text-xs text-muted-foreground">Gestion scolaire</p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-# SINIKO
+# KALANKO
 
 Plateforme SaaS de gestion scolaire multi-tenant pour les établissements maliens.
 
@@ -12,7 +12,7 @@ Plateforme SaaS de gestion scolaire multi-tenant pour les établissements malien
 ## Structure
 
 \`\`\`
-siniko/
+kalanko/
 ├── backend/        # API FastAPI
 ├── frontend/       # React + Vite + TypeScript
 ├── infra/          # Terraform + Checkov

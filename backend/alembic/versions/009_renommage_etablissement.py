@@ -39,6 +39,11 @@ END $$;
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "niveaux" not in inspector.get_table_names():
+        return
+
     # Libère le nom "classes" : divisions physiques → salles
     op.rename_table("classes", "salles")
 

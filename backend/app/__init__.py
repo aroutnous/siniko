@@ -1,1 +1,1 @@
-"""Application SINIKO — backend FastAPI."""
+"""Application KALANKO — backend FastAPI."""

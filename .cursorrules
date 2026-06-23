@@ -1,12 +1,12 @@
 # ============================================================
-# SINIKO — Règles Cursor
+# KALANKO — Règles Cursor
 # Plateforme SaaS de gestion scolaire multi-tenant
 # Stack : FastAPI + React/Vite/TS + PostgreSQL + Docker
 # Approche : DevSecOps Shift Left
 # ============================================================
 
 ## Contexte du projet
-Tu développes SINIKO, une application SaaS multi-tenant de gestion scolaire
+Tu développes KALANKO, une application SaaS multi-tenant de gestion scolaire
 pour les établissements maliens (préscolaire et fondamental).
 Le projet suit une approche DevSecOps Shift Left : la sécurité est intégrée
 à chaque ligne de code produite.

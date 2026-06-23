@@ -1,4 +1,4 @@
-# SINIKO — Architecture Frontend
+# KALANKO — Architecture Frontend
 
 ## 1. Vue d'ensemble
 

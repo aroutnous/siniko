@@ -22,28 +22,44 @@ def upgrade() -> None:
         "ALTER TYPE mode_paiement ADD VALUE IF NOT EXISTS 'cheque'"
     )
     op.execute(
-        "CREATE TYPE statut_paiement AS ENUM ('en_attente', 'valide', 'annule')"
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'statut_paiement') THEN
+                CREATE TYPE statut_paiement AS ENUM ('en_attente', 'valide', 'annule');
+            END IF;
+        END $$;
+        """
     )
-    op.add_column(
-        "paiements",
-        sa.Column(
-            "statut",
-            sa.Enum(
-                "en_attente",
-                "valide",
-                "annule",
-                name="statut_paiement",
-                create_type=False,
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    paiement_columns = {col["name"] for col in inspector.get_columns("paiements")}
+    if "statut" not in paiement_columns:
+        op.add_column(
+            "paiements",
+            sa.Column(
+                "statut",
+                sa.Enum(
+                    "en_attente",
+                    "valide",
+                    "annule",
+                    name="statut_paiement",
+                    create_type=False,
+                ),
+                nullable=False,
+                server_default="valide",
             ),
-            nullable=False,
-            server_default="valide",
-        ),
-    )
-    op.create_unique_constraint(
-        "uq_paiements_tenant_reference",
-        "paiements",
-        ["tenant_id", "reference_transaction"],
-    )
+        )
+    constraints = {
+        c["name"]
+        for c in inspector.get_unique_constraints("paiements")
+    }
+    if "uq_paiements_tenant_reference" not in constraints:
+        op.create_unique_constraint(
+            "uq_paiements_tenant_reference",
+            "paiements",
+            ["tenant_id", "reference_transaction"],
+        )
 
 
 def downgrade() -> None:

@@ -1,4 +1,4 @@
-"""Point d'entrée FastAPI — SINIKO API."""
+"""Point d'entrée FastAPI — KALANKO API."""
 
 import logging
 from typing import Any
@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="SINIKO API",
+    title="KALANKO API",
     version="1.0.0",
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",

@@ -20,20 +20,24 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute("ALTER TYPE statut_abonnement ADD VALUE IF NOT EXISTS 'resilie'")
-    op.add_column(
-        "notifications_plateforme",
-        sa.Column(
-            "emetteur_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("utilisateurs.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-    )
-    op.create_index(
-        "ix_notifications_plateforme_emetteur_id",
-        "notifications_plateforme",
-        ["emetteur_id"],
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("notifications_plateforme")}
+    if "emetteur_id" not in columns:
+        op.add_column(
+            "notifications_plateforme",
+            sa.Column(
+                "emetteur_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("utilisateurs.id", ondelete="SET NULL"),
+                nullable=True,
+            ),
+        )
+        op.create_index(
+            "ix_notifications_plateforme_emetteur_id",
+            "notifications_plateforme",
+            ["emetteur_id"],
+        )
 
 
 def downgrade() -> None:

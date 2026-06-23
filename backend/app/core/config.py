@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     """Paramètres chargés depuis .env — aucun secret en dur dans le code."""
 
     model_config = SettingsConfigDict(
-        env_file=None if os.getenv("SINIKO_TESTING") == "1" else ".env",
+        env_file=None if os.getenv("KALANKO_TESTING") == "1" else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

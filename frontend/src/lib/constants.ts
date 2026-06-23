@@ -59,8 +59,8 @@ export const ROUTES = {
 } as const;
 
 export const SESSION_KEYS = {
-  token: "siniko_access_token",
-  tenantSlug: "siniko_tenant_slug",
+  token: "kalanko_access_token",
+  tenantSlug: "kalanko_tenant_slug",
 } as const;
 
 export const ROLE_LABELS: Record<string, string> = {

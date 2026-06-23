@@ -73,6 +73,11 @@ valeurs_systeme = sa.table(
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "valeurs_systeme" in inspector.get_table_names():
+        return
+
     op.create_table(
         "valeurs_systeme",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),

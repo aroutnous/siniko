@@ -47,7 +47,7 @@ export function PlatformSidebar(): React.JSX.Element {
       <div className="flex items-center gap-2 border-b border-border px-6 py-5">
         <Shield className="h-7 w-7 text-primary" />
         <div>
-          <p className="font-bold text-primary">SINIKO</p>
+          <p className="font-bold text-primary">KALANKO</p>
           <p className="text-xs text-muted-foreground">Administration plateforme</p>
         </div>
       </div>

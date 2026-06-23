@@ -1,4 +1,4 @@
-"""Schéma initial SINIKO — tables, index tenant_id et politiques RLS.
+"""Schéma initial KALANKO — tables, index tenant_id et politiques RLS.
 
 Revision ID: 001_initial
 Revises:
@@ -106,6 +106,12 @@ _MODEL_TABLE_NAMES = frozenset(
     table.name for table in Base.metadata.sorted_tables
 )
 
+# Tables créées par des migrations ultérieures (004, 008) — pas via metadata initiale.
+_TABLES_DEFERRED_TO_LATER_MIGRATIONS = frozenset({
+    "utilisateur_permissions",
+    "valeurs_systeme",
+})
+
 
 def _assert_rls_table(table_name: str) -> None:
     """Vérifie que le nom de table provient du tuple interne RLS_TABLES."""
@@ -158,6 +164,8 @@ def _create_pg_enums(connection) -> None:
 def _create_tables(connection) -> None:
     """Crée toutes les tables SQLAlchemy manquantes."""
     for table in Base.metadata.sorted_tables:
+        if table.name in _TABLES_DEFERRED_TO_LATER_MIGRATIONS:
+            continue
         if not _table_exists(connection, table.name):
             table.create(connection, checkfirst=True)
 

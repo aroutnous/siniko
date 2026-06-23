@@ -30,7 +30,7 @@ class ExportService:
         doc = SimpleDocTemplate(buffer, pagesize=A4)
         styles = getSampleStyleSheet()
         elements: list[Any] = [
-            Paragraph(f"SINIKO — {template}", styles["Title"]),
+            Paragraph(f"KALANKO — {template}", styles["Title"]),
             Spacer(1, 12),
         ]
 

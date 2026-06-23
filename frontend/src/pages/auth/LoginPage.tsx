@@ -122,7 +122,7 @@ export function LoginPage(): React.JSX.Element {
             </div>
           )}
           <CardTitle>{tenantInfo.nom ?? slug}</CardTitle>
-          <p className="text-sm text-muted-foreground">Connexion à votre espace SINIKO</p>
+          <p className="text-sm text-muted-foreground">Connexion à votre espace KALANKO</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">

@@ -1,4 +1,4 @@
 aws_region   = "eu-west-3"
 environment  = "staging"
-project_name = "siniko"
+project_name = "kalanko"
 db_password  = "CHANGE_ME"

@@ -44,7 +44,7 @@ export function AdminLoginPage(): React.JSX.Element {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Shield className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Administration SINIKO</CardTitle>
+          <CardTitle>Administration KALANKO</CardTitle>
           <p className="text-sm text-muted-foreground">
             Connexion réservée à l&apos;administrateur plateforme
           </p>
@@ -58,7 +58,7 @@ export function AdminLoginPage(): React.JSX.Element {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@siniko.ml"
+                placeholder="admin@kalanko.ml"
                 required
                 autoComplete="email"
               />

@@ -25,19 +25,33 @@ ALTER TABLE matieres
 """
 
 _FK_MATIERES_ENSEIGNANT_PRINCIPAL = """
-ALTER TABLE matieres
-    ADD CONSTRAINT fk_matieres_enseignant_principal
-    FOREIGN KEY (enseignant_principal_id)
-    REFERENCES enseignants (id)
-    ON DELETE SET NULL
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_matieres_enseignant_principal'
+    ) THEN
+        ALTER TABLE matieres
+            ADD CONSTRAINT fk_matieres_enseignant_principal
+            FOREIGN KEY (enseignant_principal_id)
+            REFERENCES enseignants (id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 """
 
 _FK_MATIERES_ENSEIGNANT_ASSISTANT = """
-ALTER TABLE matieres
-    ADD CONSTRAINT fk_matieres_enseignant_assistant
-    FOREIGN KEY (enseignant_assistant_id)
-    REFERENCES enseignants (id)
-    ON DELETE SET NULL
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_matieres_enseignant_assistant'
+    ) THEN
+        ALTER TABLE matieres
+            ADD CONSTRAINT fk_matieres_enseignant_assistant
+            FOREIGN KEY (enseignant_assistant_id)
+            REFERENCES enseignants (id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
 """
 
 _IX_MATIERES_ENSEIGNANT_PRINCIPAL = """

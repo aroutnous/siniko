@@ -141,7 +141,7 @@ export function DashboardPage(): React.JSX.Element {
       {isLoading ? <LoadingSpinner /> : null}
       {!canFetchDashboard ? (
         <p className="mt-6 text-sm text-muted-foreground">
-          Bienvenue sur SINIKO. Utilisez le menu pour accéder aux modules autorisés.
+          Bienvenue sur KALANKO. Utilisez le menu pour accéder aux modules autorisés.
         </p>
       ) : null}
       {visibleKpis.length > 0 ? (

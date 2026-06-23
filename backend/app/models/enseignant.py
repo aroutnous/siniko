@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Index, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,7 +18,6 @@ class Enseignant(TenantScopedModel):
     __tablename__ = "enseignants"
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_enseignants_tenant_email"),
-        Index("ix_enseignants_tenant_id", "tenant_id"),
     )
 
     nom: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -60,7 +59,6 @@ class EnseignantMatiere(TenantScopedModel):
             "classe_id",
             name="uq_enseignant_matieres_affectation",
         ),
-        Index("ix_enseignant_matieres_tenant_id", "tenant_id"),
     )
 
     enseignant_id: Mapped[uuid.UUID] = mapped_column(
@@ -97,7 +95,6 @@ class EnseignantClasse(TenantScopedModel):
             "annee_scolaire_id",
             name="uq_enseignant_classes_affectation",
         ),
-        Index("ix_enseignant_classes_tenant_id", "tenant_id"),
     )
 
     enseignant_id: Mapped[uuid.UUID] = mapped_column(

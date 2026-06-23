@@ -1,8 +1,8 @@
-# SINIKO — Architecture Backend
+# KALANKO — Architecture Backend
 
 ## 1. Vue d'ensemble
 
-**SINIKO** est une plateforme SaaS multi-tenant de gestion scolaire pour les établissements maliens (préscolaire et fondamental).
+**KALANKO** est une plateforme SaaS multi-tenant de gestion scolaire pour les établissements maliens (préscolaire et fondamental).
 
 ### Stack technique
 
@@ -515,5 +515,5 @@ pytest tests/ -v
 | Swagger (dev) | http://localhost:8000/docs |
 | Frontend | http://localhost:80 |
 | Adminer | http://localhost:8080 |
-| PostgreSQL | localhost:5432 (siniko/siniko_user) |
+| PostgreSQL | localhost:5432 (kalanko/kalanko_user) |
 | Redis | localhost:6379 |

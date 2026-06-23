@@ -10,7 +10,7 @@ terraform {
 
   # Backend S3 à activer en Phase 3
   # backend "s3" {
-  #   bucket = "siniko-terraform-state"
+  #   bucket = "kalanko-terraform-state"
   #   key    = "prod/terraform.tfstate"
   #   region = "eu-west-3"
   # }
@@ -21,7 +21,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "SINIKO"
+      Project     = "KALANKO"
       Environment = var.environment
       ManagedBy   = "Terraform"
     }

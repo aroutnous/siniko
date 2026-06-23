@@ -108,6 +108,11 @@ _DISABLE_RLS_ENSEIGNANT_CLASSES = (
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "enseignants" in inspector.get_table_names():
+        return
+
     op.execute(
         """
         DO $$

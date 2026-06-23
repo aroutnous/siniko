@@ -12,10 +12,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 # Variables de test forcées avant import app (ignore backend/.env)
-os.environ["SINIKO_TESTING"] = "1"
+os.environ["KALANKO_TESTING"] = "1"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql://siniko_user:siniko_dev_password@localhost:5432/siniko",
+    "postgresql://kalanko_user:kalanko_dev_password@localhost:5432/kalanko",
 )
 os.environ["REDIS_URL"] = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379")
 os.environ["JWT_SECRET"] = "test-jwt-secret-change-me-in-production-32"

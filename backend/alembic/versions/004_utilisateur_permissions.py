@@ -62,51 +62,54 @@ WHERE u.role = :role
 
 
 def upgrade() -> None:
-    op.create_table(
-        TABLE_NAME,
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "tenant_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "utilisateur_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("utilisateurs.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("permission", sa.String(length=100), nullable=False),
-        sa.Column(
-            "accordee_par",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("utilisateurs.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint(
-            "utilisateur_id",
-            "permission",
-            name="uq_utilisateur_permissions_user_permission",
-        ),
-    )
-    op.create_index(
-        "ix_utilisateur_permissions_tenant_id",
-        TABLE_NAME,
-        ["tenant_id"],
-    )
-    op.create_index(
-        op.f("ix_utilisateur_permissions_utilisateur_id"),
-        TABLE_NAME,
-        ["utilisateur_id"],
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if TABLE_NAME not in inspector.get_table_names():
+        op.create_table(
+            TABLE_NAME,
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column(
+                "tenant_id",
+                postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "utilisateur_id",
+                postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("utilisateurs.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("permission", sa.String(length=100), nullable=False),
+            sa.Column(
+                "accordee_par",
+                postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("utilisateurs.id", ondelete="RESTRICT"),
+                nullable=False,
+            ),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+            sa.UniqueConstraint(
+                "utilisateur_id",
+                "permission",
+                name="uq_utilisateur_permissions_user_permission",
+            ),
+        )
+        op.create_index(
+            "ix_utilisateur_permissions_tenant_id",
+            TABLE_NAME,
+            ["tenant_id"],
+        )
+        op.create_index(
+            op.f("ix_utilisateur_permissions_utilisateur_id"),
+            TABLE_NAME,
+            ["utilisateur_id"],
+        )
 
     op.execute(_ALTER_ENABLE_RLS)
     op.execute(_RLS_POLICY)

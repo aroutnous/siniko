@@ -203,17 +203,36 @@ WHERE categorie = 'cycle'
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
+
     # 1. cycles — colonnes + CHECK
     op.execute(_ADD_CYCLES_COLUMNS)
-    op.execute(_CK_CYCLES_TYPE_EVALUATION)
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'ck_cycles_type_evaluation'
+            ) THEN
+                ALTER TABLE cycles
+                    ADD CONSTRAINT ck_cycles_type_evaluation
+                    CHECK (type_evaluation IN ('chiffree', 'qualitative'));
+            END IF;
+        END $$;
+        """
+    )
 
-    # 2. config_notation → cycles puis DROP
-    op.execute(_PROPAGATE_CONFIG_NOTATION_TO_CYCLES)
+    # 2. config_notation → cycles puis DROP (legacy)
+    if "config_notation" in tables:
+        op.execute(_PROPAGATE_CONFIG_NOTATION_TO_CYCLES)
     op.execute(_SET_CYCLES_DEFAULTS)
     op.execute(_SET_CYCLES_QUALITATIVE_JARDINS)
-    op.execute(_DROP_CONFIG_NOTATION_POLICY)
-    op.execute(_DROP_CONFIG_NOTATION_INDEX)
-    op.execute(_DROP_CONFIG_NOTATION_TABLE)
+    if "config_notation" in tables:
+        op.execute(_DROP_CONFIG_NOTATION_POLICY)
+        op.execute(_DROP_CONFIG_NOTATION_INDEX)
+        op.execute(_DROP_CONFIG_NOTATION_TABLE)
 
     # 3. valeurs_systeme seed (merge JSONB)
     op.execute(_UPDATE_VALEURS_JARDINS)
@@ -221,84 +240,161 @@ def upgrade() -> None:
     op.execute(_UPDATE_VALEURS_2EME_CYCLE)
 
     # 4. matieres
-    op.add_column(
-        "matieres",
-        sa.Column(
-            "est_domaine_competence",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("false"),
-        ),
-    )
+    matiere_columns = {col["name"] for col in inspector.get_columns("matieres")}
+    if "est_domaine_competence" not in matiere_columns:
+        op.add_column(
+            "matieres",
+            sa.Column(
+                "est_domaine_competence",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
+        )
 
     # 5. notes
-    op.alter_column(
-        "notes",
-        "valeur",
-        existing_type=sa.Numeric(5, 2),
-        nullable=True,
+    note_columns = {col["name"] for col in inspector.get_columns("notes")}
+    if "valeur_qualitative" not in note_columns:
+        op.alter_column(
+            "notes",
+            "valeur",
+            existing_type=sa.Numeric(5, 2),
+            nullable=True,
+        )
+        op.add_column(
+            "notes",
+            sa.Column("valeur_qualitative", sa.String(length=30), nullable=True),
+        )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'ck_notes_valeur_xor'
+            ) THEN
+                ALTER TABLE notes
+                    ADD CONSTRAINT ck_notes_valeur_xor
+                    CHECK (
+                        (valeur IS NOT NULL AND valeur_qualitative IS NULL)
+                        OR (valeur IS NULL AND valeur_qualitative IS NOT NULL)
+                    );
+            END IF;
+        END $$;
+        """
     )
-    op.add_column(
-        "notes",
-        sa.Column("valeur_qualitative", sa.String(length=30), nullable=True),
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'ck_notes_valeur_qualitative'
+            ) THEN
+                ALTER TABLE notes
+                    ADD CONSTRAINT ck_notes_valeur_qualitative
+                    CHECK (
+                        valeur_qualitative IS NULL
+                        OR valeur_qualitative IN (
+                            'acquis',
+                            'en_cours_acquisition',
+                            'non_acquis'
+                        )
+                    );
+            END IF;
+        END $$;
+        """
     )
-    op.execute(_CK_NOTES_VALEUR_XOR)
-    op.execute(_CK_NOTES_VALEUR_QUALITATIVE)
 
     # 6. bulletins
-    op.alter_column(
-        "bulletins",
-        "moyenne_generale",
-        existing_type=sa.Numeric(5, 2),
-        nullable=True,
+    bulletin_columns = {col["name"] for col in inspector.get_columns("bulletins")}
+    if "type_bulletin" not in bulletin_columns:
+        op.alter_column(
+            "bulletins",
+            "moyenne_generale",
+            existing_type=sa.Numeric(5, 2),
+            nullable=True,
+        )
+        op.alter_column(
+            "bulletins",
+            "rang",
+            existing_type=sa.Integer(),
+            nullable=True,
+        )
+        op.alter_column(
+            "bulletins",
+            "mention",
+            existing_type=sa.String(length=50),
+            nullable=True,
+        )
+        op.add_column(
+            "bulletins",
+            sa.Column(
+                "type_bulletin",
+                sa.String(length=20),
+                nullable=False,
+                server_default="chiffre",
+            ),
+        )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'ck_bulletins_type_bulletin'
+            ) THEN
+                ALTER TABLE bulletins
+                    ADD CONSTRAINT ck_bulletins_type_bulletin
+                    CHECK (type_bulletin IN ('chiffre', 'competences'));
+            END IF;
+        END $$;
+        """
     )
-    op.alter_column(
-        "bulletins",
-        "rang",
-        existing_type=sa.Integer(),
-        nullable=True,
-    )
-    op.alter_column(
-        "bulletins",
-        "mention",
-        existing_type=sa.String(length=50),
-        nullable=True,
-    )
-    op.add_column(
-        "bulletins",
-        sa.Column(
-            "type_bulletin",
-            sa.String(length=20),
-            nullable=False,
-            server_default="chiffre",
-        ),
-    )
-    op.execute(_CK_BULLETINS_TYPE_BULLETIN)
 
     # 7. bulletin_lignes
-    op.alter_column(
-        "bulletin_lignes",
-        "note",
-        existing_type=sa.Numeric(5, 2),
-        nullable=True,
+    ligne_columns = {col["name"] for col in inspector.get_columns("bulletin_lignes")}
+    if "statut_competence" not in ligne_columns:
+        op.alter_column(
+            "bulletin_lignes",
+            "note",
+            existing_type=sa.Numeric(5, 2),
+            nullable=True,
+        )
+        op.alter_column(
+            "bulletin_lignes",
+            "moyenne_classe",
+            existing_type=sa.Numeric(5, 2),
+            nullable=True,
+        )
+        op.alter_column(
+            "bulletin_lignes",
+            "coefficient",
+            existing_type=sa.Numeric(5, 2),
+            nullable=True,
+        )
+        op.add_column(
+            "bulletin_lignes",
+            sa.Column("statut_competence", sa.String(length=30), nullable=True),
+        )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'ck_bulletin_lignes_statut_competence'
+            ) THEN
+                ALTER TABLE bulletin_lignes
+                    ADD CONSTRAINT ck_bulletin_lignes_statut_competence
+                    CHECK (
+                        statut_competence IS NULL
+                        OR statut_competence IN (
+                            'acquis',
+                            'en_cours_acquisition',
+                            'non_acquis'
+                        )
+                    );
+            END IF;
+        END $$;
+        """
     )
-    op.alter_column(
-        "bulletin_lignes",
-        "moyenne_classe",
-        existing_type=sa.Numeric(5, 2),
-        nullable=True,
-    )
-    op.alter_column(
-        "bulletin_lignes",
-        "coefficient",
-        existing_type=sa.Numeric(5, 2),
-        nullable=True,
-    )
-    op.add_column(
-        "bulletin_lignes",
-        sa.Column("statut_competence", sa.String(length=30), nullable=True),
-    )
-    op.execute(_CK_BULLETIN_LIGNES_STATUT_COMPETENCE)
 
 
 def downgrade() -> None:

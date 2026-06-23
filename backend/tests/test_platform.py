@@ -18,14 +18,14 @@ async def _platform_owner_headers(
     unique_ip_headers: dict[str, str],
 ) -> dict[str, str]:
     tenant = Tenant(
-        nom="Plateforme SINIKO",
-        slug=f"siniko-platform-{uuid.uuid4().hex[:8]}",
+        nom="Plateforme KALANKO",
+        slug=f"kalanko-platform-{uuid.uuid4().hex[:8]}",
         statut=StatutTenant.ACTIF,
     )
     db_session.add(tenant)
     db_session.flush()
 
-    email = f"owner-{uuid.uuid4().hex[:8]}@siniko.ml"
+    email = f"owner-{uuid.uuid4().hex[:8]}@kalanko.ml"
     owner = Utilisateur(
         tenant_id=tenant.id,
         nom="Owner",

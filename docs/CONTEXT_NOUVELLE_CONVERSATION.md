@@ -1,4 +1,4 @@
-# SINIKO — Contexte pour nouvelle conversation IA
+# KALANKO — Contexte pour nouvelle conversation IA
 
 > Coller ce fichier en début de conversation pour reprendre le projet sans perte de contexte.
 > Dernière mise à jour : juin 2026.
@@ -7,7 +7,7 @@
 
 ## 1. Description projet (5 lignes)
 
-SINIKO est une plateforme SaaS multi-tenant de gestion scolaire pour établissements maliens (préscolaire et fondamental). Chaque établissement (tenant) dispose de son espace isolé : élèves, enseignants, pédagogie, finance, reporting. L'administration globale est réservée au `platform_owner`. Approche DevSecOps Shift Left : sécurité intégrée (RLS, permissions granulaires, audit, CI).
+KALANKO est une plateforme SaaS multi-tenant de gestion scolaire pour établissements maliens (préscolaire et fondamental). Chaque établissement (tenant) dispose de son espace isolé : élèves, enseignants, pédagogie, finance, reporting. L'administration globale est réservée au `platform_owner`. Approche DevSecOps Shift Left : sécurité intégrée (RLS, permissions granulaires, audit, CI).
 
 ---
 
@@ -180,8 +180,8 @@ Conventions : Python snake_case + type hints ; TS camelCase + interfaces ; commi
 
 ### Credentials dev (docker-compose)
 
-- DB : `siniko` / user `siniko_user` / pass `siniko_dev_password`
-- `DATABASE_URL` : `postgresql://siniko_user:siniko_dev_password@db:5432/siniko`
+- DB : `kalanko` / user `kalanko_user` / pass `kalanko_dev_password`
+- `DATABASE_URL` : `postgresql://kalanko_user:kalanko_dev_password@db:5432/kalanko`
 
 ### Credentials tests (pytest conftest)
 

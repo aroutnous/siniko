@@ -29,6 +29,6 @@ export const useExportHistoryStore = create<ExportHistoryState>()(
       },
       clear: () => set({ items: [] }),
     }),
-    { name: "siniko-export-history" },
+    { name: "kalanko-export-history" },
   ),
 );

@@ -25,7 +25,7 @@ export function LoginPageGeneric(): React.JSX.Element {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <School className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Connexion SINIKO</CardTitle>
+          <CardTitle>Connexion KALANKO</CardTitle>
           <p className="text-sm text-muted-foreground">
             Saisissez l&apos;identifiant de votre établissement
           </p>
