@@ -138,7 +138,7 @@ jobs:
           target: https://kalanko.tech
           allow_issue_writing: false
           fail_action: false
-          artifact_name: zap-report
+          artifact_name: zap_report
           cmd_options: '-a'
 
   # =====================
