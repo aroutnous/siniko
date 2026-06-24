@@ -283,6 +283,9 @@ ${API_DOMAIN} {
     encode gzip zstd
     reverse_proxy localhost:8000
 }
+
+# Grafana (monitoring — à activer manuellement)
+# grafana.kalanko.tech → localhost:3001 (à activer manuellement)
 EOF
 
   systemctl enable caddy
@@ -342,6 +345,9 @@ section_project_layout() {
 
 # Secret webhook Mobile Money
 # MOBILE_MONEY_WEBHOOK_SECRET=
+
+# Monitoring Grafana (docker-compose service grafana)
+# GRAFANA_PASSWORD=
 EOF
     chmod 600 "${KALANKO_ROOT}/.env.prod"
     log "Créé ${KALANKO_ROOT}/.env.prod (template commenté)"
