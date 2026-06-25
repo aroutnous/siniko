@@ -138,17 +138,18 @@ jobs:
           target: https://kalanko.tech
           allow_issue_writing: false
           fail_action: false
-          cmd_options: '-a'
+          cmd_options: '-a -J report_json.json -w report_md.md -r report_html.html'
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: zap-report
+          name: rapport-zap-kalanko
           path: |
             report_html.html
             report_json.json
             report_md.md
+          retention-days: 30
 
   # =====================
   # ÉTAPE 7 — POST-DEPLOY (activé via job deploy, étape 5)
